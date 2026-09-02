@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>GlutenFree Book</title>
+
+  <!-- iOS Standalone Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="GFBook">
+
+  <!-- Collegamento al file CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <div class="app-title">GlutenFree Book</div>
+    <div id="quote-display" class="quote-box">Caricamento battuta...</div>
+  </header>
+
+  <div class="container">
+    <!-- VISTA 1: CONSULTAZIONE -->
+    <section id="view-recipes" class="tab-content active">
+      <h3>Le mie Ricette</h3>
+      <div class="controls-container">
+        <div class="filter-toggle">
+          <span>Mostra solo ciò che posso cucinare</span>
+          <label class="switch">
+            <input type="checkbox" id="toggle-doable" onchange="renderRecipes()">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0;">
+          <select id="filter-macro" onchange="renderRecipes()">
+            <option value="tutti">Tutte le categorie</option>
+            <option value="dolci">Dolci</option>
+            <option value="salati">Salati</option>
+            <option value="liquori">Liquori</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="recipe-list"></div>
+    </section>
+
+    <!-- VISTA 2: DISPENSA -->
+    <section id="view-pantry" class="tab-content">
+      <h3>La tua Dispensa</h3>
+      <p class="info">Inserisci le scorte a tua disposizione. Gli ingredienti base (sale, acqua, olio) sono già dati per presenti.</p>
+      <div id="pantry-inputs"></div>
+      <button class="btn-main" onclick="savePantry()">Salva Dispensa</button>
+    </section>
+
+    <!-- VISTA 3: AGGIUNGI RICETTA -->
+    <section id="view-add" class="tab-content">
+      <h3>Nuova Ricetta</h3>
+      <div class="form-group">
+        <label>Titolo</label>
+        <input type="text" id="rec-title" placeholder="Es. Torta margherita">
+      </div>
+
+      <div class="form-group">
+        <label>Macro-Categoria</label>
+        <select id="rec-macro" onchange="updateSubcatOptions()">
+          <option value="dolci">Dolci</option>
+          <option value="salati">Salati</option>
+          <option value="liquori">Liquori</option>
+        </select>
+      </div>
+
+      <div id="subcat-container" class="form-group">
+        <label>Sotto-Categoria</label>
+        <select id="rec-subcat"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Valutazione (Stelle)</label>
+        <select id="rec-rating">
+          <option value="5">★★★★★</option>
+          <option value="4">★★★★☆</option>
+          <option value="3">★★★☆☆</option>
+          <option value="2">★★☆☆☆</option>
+          <option value="1">★☆☆☆☆</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Foto Ricetta</label>
+        <div class="file-input-wrapper">
+          <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
+          <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Ingredienti Richiesti</label>
+        <div id="recipe-ingredients-form"></div>
+        <button type="button" class="btn-add-ing" onclick="addIngredientField()">+ Aggiungi ingrediente</button>
+      </div>
+
+      <div class="form-group">
+        <label>Procedimento</label>
+        <textarea id="rec-procedure" rows="4" placeholder="Passaggi di preparazione..."></textarea>
+      </div>
+
+      <button class="btn-main" onclick="saveNewRecipe()">Salva Ricetta</button>
+    </section>
+  </div>
+
+  <nav>
+    <button class="active" onclick="switchTab('recipes', this)">
+      <svg viewBox="0 0 24 24"><path d="M19 2H5C3.89 2 3 2.89 3 4V20C3 21.11 3.89 22 5 22H19C20.11 22 21 21.11 21 20V4C21 2.89 20.11 2H19M19 20H5V4H7V12L9.5 10.5L12 12V4H19V20Z" /></svg>
+      Ricette
+    </button>
+    <button onclick="switchTab('pantry', this)">
+      <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
+      Dispensa
+    </button>
+    <button onclick="switchTab('add', this)">
+      <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
+      Aggiungi
+    </button>
+  </nav>
+
+  <!-- Collegamento allo script JS -->
+  <script src="app.js"></script>
+</body>
+</html>
