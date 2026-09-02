@@ -1,14 +1,34 @@
 const INGREDIENTS_DB = [
+  // Farine e Amidi
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
   { id: "maizena", name: "Maizena / Amido di mais", unit: "g", staple: false },
   { id: "fecola", name: "Fecola di patate", unit: "g", staple: false },
-  { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
-  { id: "uova", name: "Uova", unit: "pz", staple: false },
+  { id: "farina_ceci", name: "Farina di ceci", unit: "g", staple: false },
+  { id: "farina_cocco", name: "Farina di cocco", unit: "g", staple: false },
+  { id: "mix_farine", name: "Mix di farine", unit: "g", staple: false },
+  { id: "prep_dolci", name: "Preparato per dolci", unit: "g", staple: false },
+  { id: "prep_salati", name: "Preparato per salati", unit: "g", staple: false },
+
+  // Lieviti
+  { id: "lievito_dolci", name: "Lievito per dolci", unit: "g", staple: false },
+  { id: "lievito_birra_secco", name: "Lievito di birra secco", unit: "g", staple: false },
+  { id: "lievito_birra_fresco", name: "Lievito di birra fresco", unit: "g", staple: false },
+
+  // Latticini e Liquidi
   { id: "latte", name: "Latte", unit: "ml", staple: false },
   { id: "burro", name: "Burro", unit: "g", staple: false },
-  { id: "lievito_dolci", name: "Lievito per dolci", unit: "g", staple: false },
-  { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
+  { id: "panna_fresca", name: "Panna fresca", unit: "ml", staple: false },
+  { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
   { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
+
+  // Condimenti e Altro
+  { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
+  { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
+  { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
+  { id: "uova", name: "Uova", unit: "pz", staple: false },
+
+  // Ingredienti base e condimenti trascurabili
+  { id: "condimenti_piacere", name: "Condimenti a piacere", unit: "g", staple: true },
   { id: "sale", name: "Sale", unit: "g", staple: true },
   { id: "acqua", name: "Acqua", unit: "ml", staple: true },
   { id: "olio", name: "Olio extravergine", unit: "ml", staple: true }
