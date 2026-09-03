@@ -38,12 +38,19 @@
           </label>
         </div>
 
-        <div class="form-group" style="margin-bottom: 0;">
-          <select id="filter-macro" onchange="renderRecipes()">
+        <div class="form-group" style="margin-bottom: 8px;">
+          <select id="filter-macro" onchange="updateFilterSubcatOptions()">
             <option value="tutti">Tutte le categorie</option>
             <option value="dolci">Dolci</option>
             <option value="salati">Salati</option>
             <option value="liquori">Liquori</option>
+          </select>
+        </div>
+
+        <!-- Filtro Sottocategoria dinamico per la ricerca -->
+        <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 0;">
+          <select id="filter-subcat" onchange="renderRecipes()">
+            <option value="tutti">Tutte le sottocategorie</option>
           </select>
         </div>
       </div>
@@ -54,7 +61,7 @@
     <!-- VISTA 2: DISPENSA -->
     <section id="view-pantry" class="tab-content">
       <h3 class="page-title">Cosa offre la casa</h3>
-      <p class="info">Inserisci le scorte a tua disposizione. Gli ingredienti base (sale, acqua, olio) sono già dati per presenti.</p>
+      <p class="info">Inserisci le scorte a tua disposizione. Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono già dati per presenti.</p>
       <div class="form-card">
         <div id="pantry-inputs"></div>
         <button class="btn-main" onclick="savePantry()">Salva Dispensa</button>
@@ -119,9 +126,16 @@
     </section>
   </div>
 
+  <!-- MODALE DETTAGLIO RICETTA -->
+  <div id="recipe-modal" class="modal-overlay" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeRecipeModal()">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
   <nav>
     <button class="active" onclick="switchTab('recipes', this)">
-      <!-- Nuovo simbolo posate per Ricette -->
       <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
       Ricette
     </button>
