@@ -36,7 +36,7 @@ const INGREDIENTS_DB = [
   { id: "olio", name: "Olio extravergine", unit: "ml", staple: true }
 ];
 
-// Dolci aggiornati con 'Festività' e 'Merenda' (tolti colazione e biscotti)
+// Dolci aggiornati con 'Festività' e 'Merenda'
 const SUBCATS = {
   dolci: ["Festività", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
@@ -99,7 +99,7 @@ function updateSubcatOptions() {
   }
 }
 
-// Gestione dinamica filtro sottocategoria nella vista ricerca
+// Gestione dinamica filtro sottocategoria nella vista ricerca (senza avvio forzato)
 function updateFilterSubcatOptions() {
   const macro = document.getElementById("filter-macro").value;
   const subContainer = document.getElementById("filter-subcat-container");
@@ -118,7 +118,6 @@ function updateFilterSubcatOptions() {
   } else {
     subContainer.style.display = "none";
   }
-  renderRecipes();
 }
 
 function addIngredientField() {
@@ -246,14 +245,21 @@ function renderRecipes() {
   list.innerHTML = "";
   const onlyDoable = document.getElementById("toggle-doable").checked;
   const macroFilter = document.getElementById("filter-macro").value;
-  const subcatFilter = document.getElementById("filter-subcat").value;
+  const subcatSelect = document.getElementById("filter-subcat");
+  const subcatFilter = subcatSelect ? subcatSelect.value : "tutti";
 
   const filtered = recipes.filter(r => {
+    // 1. Filtro Macro-categoria
     if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
+    
+    // 2. Filtro Sotto-categoria
     if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
       if (r.subcat !== subcatFilter) return false;
     }
+
+    // 3. Filtro Dispensa
     if (onlyDoable && !isRecipeDoable(r)) return false;
+    
     return true;
   });
 
@@ -266,7 +272,6 @@ function renderRecipes() {
     const doable = isRecipeDoable(r);
     const card = document.createElement("div");
     card.className = "recipe-card";
-    // Apertura della scheda dettaglio al click
     card.onclick = () => openRecipeModal(r.id);
     
     const imgHtml = r.photo 
@@ -298,7 +303,7 @@ function renderRecipes() {
   });
 }
 
-// Funzione per mostrare la scheda a schermo intero della ricetta selezionata
+// Scheda Dettaglio Ricetta a schermo intero
 function openRecipeModal(recipeId) {
   const r = recipes.find(item => item.id === recipeId);
   if (!r) return;
