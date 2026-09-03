@@ -10,12 +10,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SenzaGlutine">
 
-  <!-- Google Fonts: Story Script, Chewy, Playpen Sans -->
+  <!-- Google Fonts: Chewy e Story Script -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Playpen+Sans:ital,wght@1,400;1,600;1,700&family=Story+Script&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Story+Script&display=swap" rel="stylesheet">
 
-  <!-- Foglio di Stile Esterno -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,24 +27,34 @@
   <div class="container">
     <!-- VISTA 1: CONSULTAZIONE -->
     <section id="view-recipes" class="tab-content active">
-      <h3 class="page-title">Lasciati ispirare...</h3>
+      <h3 class="page-title">Lasciati ispirare</h3>
       <div class="controls-container">
         <div class="filter-toggle">
           <span>In base alle mie scorte</span>
           <label class="switch">
-            <input type="checkbox" id="toggle-doable" onchange="renderRecipes()">
+            <input type="checkbox" id="toggle-doable">
             <span class="slider"></span>
           </label>
         </div>
 
-        <div class="form-group" style="margin-bottom: 0;">
-          <select id="filter-macro" onchange="renderRecipes()">
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label>Categoria</label>
+          <select id="filter-macro" onchange="updateFilterSubcatOptions()">
             <option value="tutti">Tutte le categorie</option>
             <option value="dolci">Dolci</option>
             <option value="salati">Salati</option>
             <option value="liquori">Liquori</option>
           </select>
         </div>
+
+        <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 12px;">
+          <label>Sottocategoria (Opzionale)</label>
+          <select id="filter-subcat">
+            <option value="tutti">Tutte le sottocategorie</option>
+          </select>
+        </div>
+
+        <button class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca Ricette</button>
       </div>
 
       <div id="recipe-list"></div>
@@ -53,8 +62,8 @@
 
     <!-- VISTA 2: DISPENSA -->
     <section id="view-pantry" class="tab-content">
-      <h3 class="page-title">Cosa offre la casa?</h3>
-      <p class="info">Inserisci le scorte a tua disposizione.<br>Gli ingredienti base (sale, acqua, olio) sono già dati per presenti.</p>
+      <h3 class="page-title">Cosa offre la casa</h3>
+      <p class="info">Inserisci le scorte a tua disposizione. Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono già dati per presenti.</p>
       <div class="form-card">
         <div id="pantry-inputs"></div>
         <button class="btn-main" onclick="savePantry()">Salva Dispensa</button>
@@ -71,7 +80,7 @@
         </div>
 
         <div class="form-group">
-          <label>Macro-categoria</label>
+          <label>Macro-Categoria</label>
           <select id="rec-macro" onchange="updateSubcatOptions()">
             <option value="dolci">Dolci</option>
             <option value="salati">Salati</option>
@@ -80,12 +89,12 @@
         </div>
 
         <div id="subcat-container" class="form-group">
-          <label>Sotto-categoria</label>
+          <label>Sotto-Categoria</label>
           <select id="rec-subcat"></select>
         </div>
 
         <div class="form-group">
-          <label>Valutazione</label>
+          <label>Valutazione (Stelle)</label>
           <select id="rec-rating">
             <option value="5">★★★★★</option>
             <option value="4">★★★★☆</option>
@@ -96,7 +105,7 @@
         </div>
 
         <div class="form-group">
-          <label>Foto</label>
+          <label>Foto Ricetta</label>
           <div class="file-input-wrapper">
             <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
             <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
@@ -104,7 +113,7 @@
         </div>
 
         <div class="form-group">
-          <label>Ingredienti</label>
+          <label>Ingredienti Richiesti</label>
           <div id="recipe-ingredients-form"></div>
           <button type="button" class="btn-add-ing" onclick="addIngredientField()">+ Aggiungi ingrediente</button>
         </div>
@@ -119,13 +128,21 @@
     </section>
   </div>
 
+  <!-- MODALE DETTAGLIO RICETTA -->
+  <div id="recipe-modal" class="modal-overlay" onclick="closeModalOnBackdrop(event)">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeRecipeModal()">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
   <nav>
     <button class="active" onclick="switchTab('recipes', this)">
       <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
       Ricette
     </button>
     <button onclick="switchTab('pantry', this)">
-      <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
+      <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
       Dispensa
     </button>
     <button onclick="switchTab('add', this)">
