@@ -21,7 +21,9 @@ const INGREDIENTS_DB = [
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
   { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
 
-  // Condimenti e Altro
+  // Dolci & Dispensa (Inclusi Cacao e Biscotti Secchi)
+  { id: "cacao", name: "Cacao", unit: "g", staple: false },
+  { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
   { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
@@ -34,8 +36,9 @@ const INGREDIENTS_DB = [
   { id: "olio", name: "Olio extravergine", unit: "ml", staple: true }
 ];
 
+// Dolci aggiornati con 'Festività' e 'Merenda' (tolti colazione e biscotti)
 const SUBCATS = {
-  dolci: ["Feste", "Merenda", "Colazione", "Biscotti"],
+  dolci: ["Festività", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
 
@@ -76,6 +79,7 @@ function updateFileName(input) {
   }
 }
 
+// Gestione sottocategoria nel form di aggiunta ricetta
 function updateSubcatOptions() {
   const macro = document.getElementById("rec-macro").value;
   const subcatContainer = document.getElementById("subcat-container");
@@ -93,6 +97,28 @@ function updateSubcatOptions() {
       subcatSelect.appendChild(opt);
     });
   }
+}
+
+// Gestione dinamica filtro sottocategoria nella vista ricerca
+function updateFilterSubcatOptions() {
+  const macro = document.getElementById("filter-macro").value;
+  const subContainer = document.getElementById("filter-subcat-container");
+  const subSelect = document.getElementById("filter-subcat");
+
+  subSelect.innerHTML = `<option value="tutti">Tutte le sottocategorie</option>`;
+
+  if (macro === "dolci" || macro === "salati") {
+    SUBCATS[macro].forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.toLowerCase();
+      opt.innerText = s;
+      subSelect.appendChild(opt);
+    });
+    subContainer.style.display = "block";
+  } else {
+    subContainer.style.display = "none";
+  }
+  renderRecipes();
 }
 
 function addIngredientField() {
@@ -220,15 +246,18 @@ function renderRecipes() {
   list.innerHTML = "";
   const onlyDoable = document.getElementById("toggle-doable").checked;
   const macroFilter = document.getElementById("filter-macro").value;
+  const subcatFilter = document.getElementById("filter-subcat").value;
 
   const filtered = recipes.filter(r => {
     if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
+    if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
+      if (r.subcat !== subcatFilter) return false;
+    }
     if (onlyDoable && !isRecipeDoable(r)) return false;
     return true;
   });
 
   if (filtered.length === 0) {
-    // Rimosso il punto finale come richiesto
     list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata</p>`;
     return;
   }
@@ -237,6 +266,8 @@ function renderRecipes() {
     const doable = isRecipeDoable(r);
     const card = document.createElement("div");
     card.className = "recipe-card";
+    // Apertura della scheda dettaglio al click
+    card.onclick = () => openRecipeModal(r.id);
     
     const imgHtml = r.photo 
       ? `<img src="${r.photo}" class="recipe-img">`
@@ -259,10 +290,55 @@ function renderRecipes() {
           </div>
         </div>
         <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
-          ${r.ingredients.length} ingredienti
+          ${r.ingredients.length} ingredienti (tocca per aprire)
         </div>
       </div>
     `;
     list.appendChild(card);
   });
+}
+
+// Funzione per mostrare la scheda a schermo intero della ricetta selezionata
+function openRecipeModal(recipeId) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r) return;
+
+  const doable = isRecipeDoable(r);
+  const body = document.getElementById("modal-body");
+
+  const ingredientsListHtml = r.ingredients.map(i => {
+    const info = INGREDIENTS_DB.find(db => db.id === i.id);
+    const name = info ? info.name : i.id;
+    const unit = info ? info.unit : '';
+    return `<div class="modal-ingredient-item">• ${name}: <strong>${i.amount} ${unit}</strong></div>`;
+  }).join("");
+
+  body.innerHTML = `
+    ${r.photo ? `<img src="${r.photo}" class="modal-img">` : ''}
+    <h3 class="modal-title">${r.title}</h3>
+    <div style="margin-bottom: 10px;">
+      <span class="badge badge-macro">${r.macro.toUpperCase()}</span>
+      ${r.subcat ? `<span class="badge badge-sub">${r.subcat.toUpperCase()}</span>` : ''}
+      ${doable ? `<span class="badge badge-doable">FATTIBILE ORA</span>` : ''}
+    </div>
+    <div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+
+    <div class="modal-section-title">Ingredienti</div>
+    <div style="margin-bottom: 14px;">${ingredientsListHtml.length > 0 ? ingredientsListHtml : '<p>Nessun ingrediente inserito.</p>'}</div>
+
+    <div class="modal-section-title">Procedimento</div>
+    <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
+  `;
+
+  document.getElementById("recipe-modal").classList.add("open");
+}
+
+function closeRecipeModal() {
+  document.getElementById("recipe-modal").classList.remove("open");
+}
+
+function closeModalOnBackdrop(event) {
+  if (event.target.id === "recipe-modal") {
+    closeRecipeModal();
+  }
 }
