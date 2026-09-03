@@ -58,7 +58,6 @@ window.onload = () => {
   buildPantryUI();
   renderRecipes();
 
-  // Chiudi cliccando fuori dal modale
   const modalEl = document.getElementById("recipe-modal");
   if (modalEl) {
     modalEl.addEventListener("click", (e) => {
@@ -146,12 +145,15 @@ function addIngredientField(presetId = null, presetAmount = "") {
   const row = document.createElement("div");
   row.className = "ingredient-row";
   
-  let opts = INGREDIENTS_DB.map(i => `<option value="${i.id}" ${presetId === i.id ? 'selected' : ''}>${i.name} (${i.unit})</option>`).join("");
+  let opts = INGREDIENTS_DB.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
   row.innerHTML = `
     <select class="ing-select" style="flex:2">${opts}</select>
     <input type="number" class="ing-amount" placeholder="Q.tà" value="${presetAmount}" style="flex:1" min="1">
     <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;font-weight:bold;padding:0 6px;font-size:1.1rem;">✕</button>
   `;
+  if (presetId) {
+    row.querySelector(".ing-select").value = presetId;
+  }
   container.appendChild(row);
 }
 
@@ -405,7 +407,6 @@ function renderRecipes() {
     const card = document.createElement("div");
     card.className = "recipe-card";
     
-    // Assegnazione sicura click senza richiamare eventi indesiderati
     card.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -459,7 +460,6 @@ function releaseWakeLock() {
 }
 
 function openRecipeModal(recipeId) {
-  // Conversione sicura a stringa per evitare qualsiasi disallineamento
   const r = recipes.find(item => String(item.id) === String(recipeId));
   if (!r) return;
 
@@ -606,7 +606,9 @@ function closeRecipeModal() {
   currentOpenRecipe = null;
 }
 
-async function exportDataBackup() {
+/* --- FUNZIONI DI SALVATAGGIO DATI (COPIA / INCOLLA & FILE) --- */
+
+function exportDataBackup() {
   const exportPayload = {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -614,43 +616,50 @@ async function exportDataBackup() {
     pantry: pantry
   };
 
-  const jsonString = JSON.stringify(exportPayload, null, 2);
-  const fileName = `ricette_gf_backup_${new Date().toISOString().slice(0, 10)}.json`;
-  const blob = new Blob([jsonString], { type: "application/json" });
+  const jsonString = JSON.stringify(exportPayload);
+  const container = document.getElementById("backup-text-container");
+  const textarea = document.getElementById("backup-text-area");
 
-  // 1. Metodo ottimale per iPhone: Menu di Condivisione iOS (AirDrop, Salva su File, ecc.)
-  if (navigator.canShare) {
-    const file = new File([blob], fileName, { type: "application/json" });
-    if (navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "Backup Ricette Gluten Free",
-          text: "Ecco il file di backup delle mie ricette."
-        });
-        return; // Completato con successo tramite menu iOS
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          console.error("Errore condivisione:", err);
-        } else {
-          return; // L'utente ha semplicemente chiuso il menu
-        }
-      }
-    }
+  if (container && textarea) {
+    textarea.value = jsonString;
+    container.style.display = "block";
+    textarea.scrollIntoView({ behavior: 'smooth' });
   }
 
-  // 2. Metodo alternativo tramite Blob Object URL (se il menu Share non è supportato)
-  const url = URL.createObjectURL(blob);
-  const downloadAnchor = document.createElement("a");
-  downloadAnchor.href = url;
-  downloadAnchor.download = fileName;
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  
-  setTimeout(() => {
-    document.body.removeChild(downloadAnchor);
-    URL.revokeObjectURL(url);
-  }, 100);
+  if (navigator.share) {
+    try {
+      navigator.share({
+        title: "Backup Ricette GF",
+        text: jsonString
+      }).catch(() => {});
+    } catch(e) {}
+  }
+}
+
+function copyBackupToClipboard() {
+  const textarea = document.getElementById("backup-text-area");
+  if (!textarea || !textarea.value) return;
+
+  navigator.clipboard.writeText(textarea.value).then(() => {
+    alert("✅ Codice di backup copiato! Ora puoi incollarlo nelle Note o inviarlo al tablet.");
+  }).catch(() => {
+    textarea.select();
+    document.execCommand("copy");
+    alert("✅ Codice selezionato e copiato negli appunti!");
+  });
+}
+
+function importFromTextArea() {
+  const textarea = document.getElementById("backup-text-area");
+  const rawData = textarea ? textarea.value.trim() : "";
+  if (!rawData) return alert("Incolla prima il testo del backup nel riquadro.");
+
+  try {
+    const data = JSON.parse(rawData);
+    processImportedData(data);
+  } catch(err) {
+    alert("Il testo inserito non è valido. Assicurati di aver copiato tutto il codice.");
+  }
 }
 
 function importDataBackup(input) {
@@ -661,33 +670,38 @@ function importDataBackup(input) {
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.recipes || !Array.isArray(data.recipes)) {
-        throw new Error("Formato non valido");
-      }
-
-      if (confirm(`Trovate ${data.recipes.length} ricette nel backup. Vuoi sostituire tutto o unire?\n\nOK = Sostituisci\nAnnulla = Unisci`)) {
-        recipes = data.recipes;
-        pantry = data.pantry || {};
-      } else {
-        const existingIds = new Set(recipes.map(r => String(r.id)));
-        data.recipes.forEach(r => {
-          if (!existingIds.has(String(r.id))) {
-            recipes.push(r);
-          }
-        });
-        pantry = Object.assign({}, pantry, data.pantry || {});
-      }
-
-      localStorage.setItem("gf_recipes", JSON.stringify(recipes));
-      localStorage.setItem("gf_pantry", JSON.stringify(pantry));
-
-      alert("Dati ripristinati con successo!");
-      buildPantryUI();
-      renderRecipes();
+      processImportedData(data);
       input.value = "";
     } catch (err) {
       alert("Errore durante la lettura del file di backup.");
     }
   };
   reader.readAsText(file);
+}
+
+function processImportedData(data) {
+  if (!data.recipes || !Array.isArray(data.recipes)) {
+    alert("Formato dati non valido.");
+    return;
+  }
+
+  if (confirm(`Trovate ${data.recipes.length} ricette.\n\nPremi OK per SOSTITUIRE tutto l'archivio.\nPremi ANNULLA per UNIRE alle ricette attuali.`)) {
+    recipes = data.recipes;
+    pantry = data.pantry || {};
+  } else {
+    const existingIds = new Set(recipes.map(r => String(r.id)));
+    data.recipes.forEach(r => {
+      if (!existingIds.has(String(r.id))) {
+        recipes.push(r);
+      }
+    });
+    pantry = Object.assign({}, pantry, data.pantry || {});
+  }
+
+  localStorage.setItem("gf_recipes", JSON.stringify(recipes));
+  localStorage.setItem("gf_pantry", JSON.stringify(pantry));
+
+  alert("Dati ripristinati con successo!");
+  buildPantryUI();
+  renderRecipes();
 }

@@ -295,7 +295,7 @@ button.btn-add-ing {
   font-size: 1.05rem;
 }
 
-/* Modale - Livello isolato z-index 9999 */
+/* Modale isolato */
 .modal-overlay {
   display: none;
   position: fixed;
