@@ -1,5 +1,5 @@
 :root {
-  /* Palette */
+  /* Palette Richiesta */
   --c-cream: #F9EBE0;      /* Card ricette e modale */
   --c-dark-teal: #0B5351;  /* Header, bottoni, bordi */
   --c-teal: #00A9A5;       /* Sfondo principale */
@@ -13,13 +13,13 @@
   --radius-sm: 12px;
 }
 
-/* Regola globale: testo nero, NIENTE corsivo, Story Script di base */
+/* Regola globale: testo nero, NIENTE corsivo, Story Script di default */
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   outline: none;
   color: #000000 !important;
-  font-style: normal !important; /* Nessun corsivo */
+  font-style: normal !important;
   font-family: 'Story Script', cursive;
 }
 
