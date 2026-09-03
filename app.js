@@ -22,7 +22,7 @@ const INGREDIENTS_DB = [
   { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
 
   // Condimenti e Altro
-  { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
+  { id: "salsa", name: "Salsa", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
   { id: "uova", name: "Uova", unit: "pz", staple: false },
@@ -35,7 +35,7 @@ const INGREDIENTS_DB = [
 ];
 
 const SUBCATS = {
-  dolci: ["Feste", "Merenda", "Colazione", "Biscotti"],
+  dolci: ["Feste", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
 
@@ -228,7 +228,6 @@ function renderRecipes() {
   });
 
   if (filtered.length === 0) {
-    // Rimosso il punto finale come richiesto
     list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata</p>`;
     return;
   }
