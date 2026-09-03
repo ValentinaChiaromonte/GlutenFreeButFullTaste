@@ -69,10 +69,10 @@ function updateFileName(input) {
   const display = document.getElementById("file-name-display");
   if (input.files && input.files[0]) {
     display.innerText = "Foto pronta per il salvataggio";
-    display.style.background = "var(--c-mint)";
+    display.style.background = "var(--c-sky-blue)";
   } else {
     display.innerText = "Carica o scatta foto";
-    display.style.background = "var(--c-aqua)";
+    display.style.background = "var(--c-cream)";
   }
 }
 
@@ -104,7 +104,7 @@ function addIngredientField() {
   row.innerHTML = `
     <select class="ing-select" style="flex:2">${opts}</select>
     <input type="number" class="ing-amount" placeholder="Q.tà" style="flex:1" min="1">
-    <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;font-weight:bold;padding:0 4px;">✕</button>
+    <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;font-weight:bold;padding:0 6px;font-size:1.1rem;">✕</button>
   `;
   container.appendChild(row);
 }
@@ -175,7 +175,7 @@ async function saveNewRecipe() {
   document.getElementById("rec-procedure").value = "";
   document.getElementById("rec-photo").value = "";
   document.getElementById("file-name-display").innerText = "Carica o scatta foto";
-  document.getElementById("file-name-display").style.background = "var(--c-aqua)";
+  document.getElementById("file-name-display").style.background = "var(--c-cream)";
   document.getElementById("recipe-ingredients-form").innerHTML = "";
   switchTab('recipes', document.querySelectorAll('nav button')[0]);
 }
@@ -188,8 +188,8 @@ function buildPantryUI() {
     const div = document.createElement("div");
     div.className = "ingredient-row";
     div.innerHTML = `
-      <span style="flex:2; font-size:0.9rem; font-weight:600;">${ing.name}</span>
-      <span style="font-size:0.8rem; margin-right:6px;">${ing.unit}</span>
+      <span style="flex:2; font-size:0.95rem; font-weight:700;">${ing.name}</span>
+      <span style="font-size:0.85rem; margin-right:6px;">${ing.unit}</span>
       <input type="number" id="pantry-${ing.id}" value="${val > 0 ? val : ''}" placeholder="0" style="flex:1; text-align:right;">
     `;
     c.appendChild(div);
@@ -228,7 +228,8 @@ function renderRecipes() {
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:0.9rem;">Nessuna ricetta trovata.</p>`;
+    // Rimosso il punto finale come richiesto
+    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata</p>`;
     return;
   }
 
@@ -239,7 +240,7 @@ function renderRecipes() {
     
     const imgHtml = r.photo 
       ? `<img src="${r.photo}" class="recipe-img">`
-      : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:1.8rem;">🍽️</div>`;
+      : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
 
     card.innerHTML = `
       <div class="recipe-card-img-container">
@@ -257,7 +258,7 @@ function renderRecipes() {
             </div>
           </div>
         </div>
-        <div style="font-size:0.75rem; margin-top:6px;">
+        <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
           ${r.ingredients.length} ingredienti
         </div>
       </div>
