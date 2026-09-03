@@ -1,5 +1,4 @@
 const INGREDIENTS_DB = [
-  // Farine e Amidi
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
   { id: "maizena", name: "Maizena / Amido di mais", unit: "g", staple: false },
   { id: "fecola", name: "Fecola di patate", unit: "g", staple: false },
@@ -8,28 +7,20 @@ const INGREDIENTS_DB = [
   { id: "mix_farine", name: "Mix di farine", unit: "g", staple: false },
   { id: "prep_dolci", name: "Preparato per dolci", unit: "g", staple: false },
   { id: "prep_salati", name: "Preparato per salati", unit: "g", staple: false },
-
-  // Lieviti
   { id: "lievito_dolci", name: "Lievito per dolci", unit: "g", staple: false },
   { id: "lievito_birra_secco", name: "Lievito di birra secco", unit: "g", staple: false },
   { id: "lievito_birra_fresco", name: "Lievito di birra fresco", unit: "g", staple: false },
-
-  // Latticini e Liquidi
   { id: "latte", name: "Latte", unit: "ml", staple: false },
   { id: "burro", name: "Burro", unit: "g", staple: false },
   { id: "panna_fresca", name: "Panna fresca", unit: "ml", staple: false },
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
   { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
-
-  // Dolci & Dispensa
   { id: "cacao", name: "Cacao", unit: "g", staple: false },
   { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
   { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
   { id: "uova", name: "Uova", unit: "pz", staple: false },
-
-  // Ingredienti base e condimenti trascurabili
   { id: "condimenti_piacere", name: "Condimenti a piacere", unit: "g", staple: true },
   { id: "sale", name: "Sale", unit: "g", staple: true },
   { id: "acqua", name: "Acqua", unit: "ml", staple: true },
@@ -52,14 +43,9 @@ let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
 let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
 let editingRecipeId = null;
 
-// Gestione WakeLock (Schermo sempre attivo)
 let wakeLockSentinel = null;
-
-// Gestione Timer Cucina
 let timerInterval = null;
 let timerSecondsRemaining = 0;
-
-// Variabili per Scaler Porzioni nel Modale
 let currentOpenRecipe = null;
 let currentModalServings = 4;
 
@@ -72,10 +58,12 @@ window.onload = () => {
   buildPantryUI();
   renderRecipes();
 
-  // Ricerca testuale immediata
-  const searchInput = document.getElementById("search-keyword");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => renderRecipes());
+  // Chiudi cliccando fuori dal modale
+  const modalEl = document.getElementById("recipe-modal");
+  if (modalEl) {
+    modalEl.addEventListener("click", (e) => {
+      if (e.target.id === "recipe-modal") closeRecipeModal();
+    });
   }
 };
 
@@ -89,11 +77,9 @@ function switchTab(tabId, btn) {
   const targetView = document.getElementById('view-' + tabId);
   if (targetView) targetView.classList.add('active');
   if (btn) btn.classList.add('active');
-  if (tabId === 'recipes') renderRecipes();
 
-  if (tabId !== 'add' && editingRecipeId !== null) {
-    resetAddForm();
-  }
+  if (tabId === 'recipes') renderRecipes();
+  if (tabId !== 'add' && editingRecipeId !== null) resetAddForm();
 
   window.scrollTo(0, 0);
 }
@@ -179,15 +165,17 @@ function compressImage(file) {
       img.src = e.target.result;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 600;
         const scale = MAX_WIDTH / img.width;
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
         canvas.height = (img.width > MAX_WIDTH) ? (img.height * scale) : img.height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.7)); 
+        resolve(canvas.toDataURL("image/jpeg", 0.65));
       };
+      img.onerror = () => resolve(null);
     };
+    reader.onerror = () => resolve(null);
   });
 }
 
@@ -242,12 +230,12 @@ async function saveNewRecipe() {
   if (photoFile) {
     photoBase64 = await compressImage(photoFile);
   } else if (editingRecipeId !== null) {
-    const existing = recipes.find(r => r.id === editingRecipeId);
+    const existing = recipes.find(r => String(r.id) === String(editingRecipeId));
     if (existing) photoBase64 = existing.photo;
   }
 
   if (editingRecipeId !== null) {
-    const index = recipes.findIndex(r => r.id === editingRecipeId);
+    const index = recipes.findIndex(r => String(r.id) === String(editingRecipeId));
     if (index !== -1) {
       recipes[index] = {
         id: editingRecipeId,
@@ -285,7 +273,7 @@ async function saveNewRecipe() {
 }
 
 function editRecipe(recipeId) {
-  const r = recipes.find(item => item.id === recipeId);
+  const r = recipes.find(item => String(item.id) === String(recipeId));
   if (!r) return;
 
   closeRecipeModal();
@@ -322,11 +310,11 @@ function editRecipe(recipeId) {
 }
 
 function deleteRecipe(recipeId) {
-  const r = recipes.find(item => item.id === recipeId);
+  const r = recipes.find(item => String(item.id) === String(recipeId));
   if (!r) return;
 
   if (confirm(`Sei sicuro di voler eliminare la ricetta "${r.title}"?`)) {
-    recipes = recipes.filter(item => item.id !== recipeId);
+    recipes = recipes.filter(item => String(item.id) !== String(recipeId));
     localStorage.setItem("gf_recipes", JSON.stringify(recipes));
     closeRecipeModal();
     renderRecipes();
@@ -387,25 +375,21 @@ function renderRecipes() {
   const subcatFilter = subcatSelect ? subcatSelect.value : "tutti";
 
   const filtered = recipes.filter(r => {
-    // 1. Filtro parola chiave
     if (keyword) {
       const matchTitle = r.title.toLowerCase().includes(keyword);
-      const matchIngredient = r.ingredients.some(i => {
+      const matchIngredient = (r.ingredients || []).some(i => {
         const info = INGREDIENTS_DB.find(db => db.id === i.id);
         return info && info.name.toLowerCase().includes(keyword);
       });
       if (!matchTitle && !matchIngredient) return false;
     }
 
-    // 2. Filtro Macro
     if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
     
-    // 3. Filtro Sottocategoria
     if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
       if (r.subcat !== subcatFilter) return false;
     }
 
-    // 4. Filtro Dispensa
     if (onlyDoable && !isRecipeDoable(r)) return false;
     
     return true;
@@ -420,8 +404,14 @@ function renderRecipes() {
     const doable = isRecipeDoable(r);
     const card = document.createElement("div");
     card.className = "recipe-card";
-    card.onclick = () => openRecipeModal(r.id);
     
+    // Assegnazione sicura click senza richiamare eventi indesiderati
+    card.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openRecipeModal(r.id);
+    });
+
     const imgHtml = r.photo 
       ? `<img src="${r.photo}" class="recipe-img">`
       : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
@@ -434,7 +424,7 @@ function renderRecipes() {
         <div>
           <h4 class="recipe-title">${r.title}</h4>
           <div>
-            <div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+            <div class="stars">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))}</div>
             <div class="recipe-tags">
               <span class="badge badge-macro">${r.macro}</span>
               ${r.subcat ? `<span class="badge badge-sub">${r.subcat}</span>` : ''}
@@ -443,7 +433,7 @@ function renderRecipes() {
           </div>
         </div>
         <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
-          ${r.ingredients.length} ingredienti • ${r.servings || 4} porzioni
+          ${(r.ingredients || []).length} ingredienti • ${r.servings || 4} porzioni
         </div>
       </div>
     `;
@@ -451,15 +441,13 @@ function renderRecipes() {
   });
 }
 
-/* --- DETTAGLIO RICETTA (SCHERMO ATTIVO + TIMER + SCALER) --- */
+/* --- DETTAGLIO SCHEDA RICETTA --- */
 
 async function requestWakeLock() {
   if ('wakeLock' in navigator) {
     try {
       wakeLockSentinel = await navigator.wakeLock.request('screen');
-    } catch (err) {
-      console.log('WakeLock non attivo');
-    }
+    } catch (err) {}
   }
 }
 
@@ -471,16 +459,14 @@ function releaseWakeLock() {
 }
 
 function openRecipeModal(recipeId) {
-  // Usa == invece di === per evitare conflitti tra ID salvati come testo o numero
-  const r = recipes.find(item => item.id == recipeId);
+  // Conversione sicura a stringa per evitare qualsiasi disallineamento
+  const r = recipes.find(item => String(item.id) === String(recipeId));
   if (!r) return;
 
   currentOpenRecipe = r;
   currentModalServings = r.servings || 4;
 
-  // Attiva schermo sempre acceso per cucinare
   requestWakeLock();
-
   renderModalContent();
 
   const modal = document.getElementById("recipe-modal");
@@ -506,10 +492,9 @@ function renderModalContent() {
     return `<div class="modal-ingredient-item">• ${name}: <strong>${scaledAmount} ${unit}</strong></div>`;
   }).join("");
 
-  // Gestione foto: se c'è mostra la foto, altrimenti un placeholder coerente
   const imageHtml = r.photo 
-    ? `<img src="${r.photo}" class="modal-img" alt="${r.title}">` 
-    : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--c-sky-blue);">🍽️</div>`;
+    ? `<img src="${r.photo}" class="modal-img">` 
+    : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>`;
 
   body.innerHTML = `
     ${imageHtml}
@@ -524,9 +509,9 @@ function renderModalContent() {
     <div class="modal-section-title">
       <span>Ingredienti</span>
       <div class="portion-scaler">
-        <button class="btn-portion" onclick="adjustServings(-1)">-</button>
+        <button type="button" class="btn-portion" onclick="adjustServings(-1)">-</button>
         <span style="font-size:0.9rem; font-weight:700;">${currentModalServings} porzioni</span>
-        <button class="btn-portion" onclick="adjustServings(1)">+</button>
+        <button type="button" class="btn-portion" onclick="adjustServings(1)">+</button>
       </div>
     </div>
     <div style="margin-bottom: 14px;">${ingredientsListHtml.length > 0 ? ingredientsListHtml : '<p>Nessun ingrediente inserito.</p>'}</div>
@@ -534,21 +519,19 @@ function renderModalContent() {
     <div class="modal-section-title">Procedimento</div>
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
 
-    <!-- Timer Cucina Integrato -->
     <div class="kitchen-timer-box">
       <div style="font-size: 1rem; font-weight: 700; color: var(--c-cream);">⏱️ Timer di Cottura</div>
       <div class="timer-display" id="timer-clock">00:00</div>
       <div class="timer-controls">
         <input type="number" id="timer-minutes-input" min="1" max="180" placeholder="Minuti" value="15">
-        <button class="btn-timer" onclick="startKitchenTimer()">Avvia</button>
-        <button class="btn-timer" onclick="resetKitchenTimer()">Stop</button>
+        <button type="button" class="btn-timer" onclick="startKitchenTimer()">Avvia</button>
+        <button type="button" class="btn-timer" onclick="resetKitchenTimer()">Stop</button>
       </div>
     </div>
 
-    <!-- Pulsanti Azione Modifica / Elimina -->
     <div class="modal-actions">
-      <button class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
-      <button class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
+      <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
+      <button type="button" class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
     </div>
   `;
 }
@@ -561,7 +544,6 @@ function adjustServings(delta) {
   }
 }
 
-// Logica Timer Cucina
 function startKitchenTimer() {
   if (timerInterval) clearInterval(timerInterval);
 
@@ -599,7 +581,6 @@ function updateTimerDisplay() {
   clock.innerText = `${m}:${s}`;
 }
 
-// Generatore acustico nativo via Web Audio API (nessun file audio esterno da scaricare)
 function playBeepSound() {
   try {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -609,7 +590,7 @@ function playBeepSound() {
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.type = 'sine';
-      osc.frequency.value = 880; // Nota La
+      osc.frequency.value = 880;
       osc.start(audioCtx.currentTime + i * 0.3);
       osc.stop(audioCtx.currentTime + i * 0.3 + 0.2);
     }
@@ -620,19 +601,10 @@ function closeRecipeModal() {
   const modal = document.getElementById("recipe-modal");
   if (modal) modal.classList.remove("open");
   
-  // Rilascia lo schermo e stoppa il timer
   releaseWakeLock();
   resetKitchenTimer();
   currentOpenRecipe = null;
 }
-
-function closeModalOnBackdrop(event) {
-  if (event.target.id === "recipe-modal") {
-    closeRecipeModal();
-  }
-}
-
-/* --- BACKUP JSON --- */
 
 function exportDataBackup() {
   const exportPayload = {
@@ -662,16 +634,16 @@ function importDataBackup(input) {
     try {
       const data = JSON.parse(e.target.result);
       if (!data.recipes || !Array.isArray(data.recipes)) {
-        throw new Error("Formato backup non valido");
+        throw new Error("Formato non valido");
       }
 
-      if (confirm(`Trovate ${data.recipes.length} ricette nel backup. Vuoi sostituire o unire i dati esistenti?\n\nPremi OK per SOSTITUIRE TUTTO\nPremi ANNULLA per UNIRE alle attuali`)) {
+      if (confirm(`Trovate ${data.recipes.length} ricette nel backup. Vuoi sostituire tutto o unire?\n\nOK = Sostituisci\nAnnulla = Unisci`)) {
         recipes = data.recipes;
         pantry = data.pantry || {};
       } else {
-        const existingIds = new Set(recipes.map(r => r.id));
+        const existingIds = new Set(recipes.map(r => String(r.id)));
         data.recipes.forEach(r => {
-          if (!existingIds.has(r.id)) {
+          if (!existingIds.has(String(r.id))) {
             recipes.push(r);
           }
         });
@@ -686,7 +658,7 @@ function importDataBackup(input) {
       renderRecipes();
       input.value = "";
     } catch (err) {
-      alert("Errore durante la lettura del file di backup: assicurati che sia un file .json valido.");
+      alert("Errore durante la lettura del file di backup.");
     }
   };
   reader.readAsText(file);

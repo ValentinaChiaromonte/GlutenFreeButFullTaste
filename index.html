@@ -29,7 +29,7 @@
     <section id="view-recipes" class="tab-content active">
       <h3 class="page-title">Lasciati ispirare</h3>
       <div class="controls-container">
-        <!-- Ricerca rapida testuale -->
+        <!-- Campo ricerca testuale manuale -->
         <div class="form-group" style="margin-bottom: 10px;">
           <input type="text" id="search-keyword" placeholder="🔍 Cerca per nome o ingrediente...">
         </div>
@@ -59,7 +59,7 @@
           </select>
         </div>
 
-        <button class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca Ricette</button>
+        <button type="button" class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca Ricette</button>
       </div>
 
       <div id="recipe-list"></div>
@@ -72,14 +72,14 @@
       
       <div class="form-card">
         <div id="pantry-inputs"></div>
-        <button class="btn-main" onclick="savePantry()">Salva Dispensa</button>
+        <button type="button" class="btn-main" onclick="savePantry()">Salva Dispensa</button>
       </div>
 
       <h3 class="page-title" style="margin-top: 24px;">Salvataggio Dati</h3>
       <div class="form-card">
         <p style="font-size: 0.95rem; margin-top: 0; margin-bottom: 12px;">Esporta i tuoi dati per salvarli o trasferirli su tablet o un altro dispositivo:</p>
         
-        <button class="btn-main" onclick="exportDataBackup()" style="margin-top: 0; background: var(--c-sky-blue);">📤 Esporta Backup (.json)</button>
+        <button type="button" class="btn-main" onclick="exportDataBackup()" style="margin-top: 0; background: var(--c-sky-blue);">📤 Esporta Backup (.json)</button>
         
         <div style="margin-top: 14px;">
           <label style="margin-bottom: 6px;">Ripristina da file:</label>
@@ -115,8 +115,8 @@
         </div>
 
         <div class="form-group">
-          <label>Porzioni base della ricetta</label>
-          <input type="number" id="rec-servings" value="4" min="1" placeholder="Es. 4">
+          <label>Porzioni base</label>
+          <input type="number" id="rec-servings" value="4" min="1" placeholder="4">
         </div>
 
         <div class="form-group">
@@ -149,29 +149,29 @@
           <textarea id="rec-procedure" rows="4" placeholder="Passaggi di preparazione..."></textarea>
         </div>
 
-        <button class="btn-main" onclick="saveNewRecipe()">Salva Ricetta</button>
+        <button type="button" class="btn-main" onclick="saveNewRecipe()">Salva Ricetta</button>
       </div>
     </section>
   </div>
 
-  <!-- MODALE DETTAGLIO RICETTA -->
-  <div id="recipe-modal" class="modal-overlay" onclick="closeModalOnBackdrop(event)">
+  <!-- MODALE DETTAGLIO RICETTA (ISOLATO FUORI DAL CONTAINER) -->
+  <div id="recipe-modal" class="modal-overlay">
     <div class="modal-content">
-      <button class="modal-close" onclick="closeRecipeModal()">✕</button>
+      <button type="button" class="modal-close" onclick="closeRecipeModal()">✕</button>
       <div id="modal-body"></div>
     </div>
   </div>
 
   <nav>
-    <button class="active" onclick="switchTab('recipes', this)">
+    <button type="button" class="active" onclick="switchTab('recipes', this)">
       <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
       Ricette
     </button>
-    <button onclick="switchTab('pantry', this)">
+    <button type="button" onclick="switchTab('pantry', this)">
       <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
       Dispensa
     </button>
-    <button onclick="switchTab('add', this)">
+    <button type="button" onclick="switchTab('add', this)">
       <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
       Aggiungi
     </button>
