@@ -33,12 +33,13 @@
         <div class="filter-toggle">
           <span>In base alle mie scorte</span>
           <label class="switch">
-            <input type="checkbox" id="toggle-doable" onchange="renderRecipes()">
+            <input type="checkbox" id="toggle-doable">
             <span class="slider"></span>
           </label>
         </div>
 
         <div class="form-group" style="margin-bottom: 8px;">
+          <label>Categoria</label>
           <select id="filter-macro" onchange="updateFilterSubcatOptions()">
             <option value="tutti">Tutte le categorie</option>
             <option value="dolci">Dolci</option>
@@ -47,12 +48,16 @@
           </select>
         </div>
 
-        <!-- Filtro Sottocategoria dinamico per la ricerca -->
-        <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 0;">
-          <select id="filter-subcat" onchange="renderRecipes()">
+        <!-- Filtro Sottocategoria opzionale -->
+        <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 12px;">
+          <label>Sottocategoria (Opzionale)</label>
+          <select id="filter-subcat">
             <option value="tutti">Tutte le sottocategorie</option>
           </select>
         </div>
+
+        <!-- Pulsante per avviare la ricerca -->
+        <button class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca Ricette</button>
       </div>
 
       <div id="recipe-list"></div>
