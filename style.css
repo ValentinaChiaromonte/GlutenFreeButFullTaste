@@ -52,7 +52,7 @@ header {
   line-height: 1.1;
 }
 
-/* Frase simpatica con font Story Script, senza riquadro*/
+/* Frase simpatica con font Story Script, senza riquadro (trasparente) */
 .quote-box {
   font-family: 'Story Script', cursive !important;
   font-size: 1.25rem;
