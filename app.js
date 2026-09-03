@@ -606,7 +606,7 @@ function closeRecipeModal() {
   currentOpenRecipe = null;
 }
 
-function exportDataBackup() {
+async function exportDataBackup() {
   const exportPayload = {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -614,15 +614,43 @@ function exportDataBackup() {
     pantry: pantry
   };
 
-  const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
-  const downloadAnchor = document.createElement("a");
+  const jsonString = JSON.stringify(exportPayload, null, 2);
   const fileName = `ricette_gf_backup_${new Date().toISOString().slice(0, 10)}.json`;
-  
-  downloadAnchor.setAttribute("href", jsonString);
-  downloadAnchor.setAttribute("download", fileName);
+  const blob = new Blob([jsonString], { type: "application/json" });
+
+  // 1. Metodo ottimale per iPhone: Menu di Condivisione iOS (AirDrop, Salva su File, ecc.)
+  if (navigator.canShare) {
+    const file = new File([blob], fileName, { type: "application/json" });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "Backup Ricette Gluten Free",
+          text: "Ecco il file di backup delle mie ricette."
+        });
+        return; // Completato con successo tramite menu iOS
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Errore condivisione:", err);
+        } else {
+          return; // L'utente ha semplicemente chiuso il menu
+        }
+      }
+    }
+  }
+
+  // 2. Metodo alternativo tramite Blob Object URL (se il menu Share non è supportato)
+  const url = URL.createObjectURL(blob);
+  const downloadAnchor = document.createElement("a");
+  downloadAnchor.href = url;
+  downloadAnchor.download = fileName;
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
-  downloadAnchor.remove();
+  
+  setTimeout(() => {
+    document.body.removeChild(downloadAnchor);
+    URL.revokeObjectURL(url);
+  }, 100);
 }
 
 function importDataBackup(input) {
