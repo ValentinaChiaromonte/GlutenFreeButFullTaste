@@ -50,6 +50,18 @@ const QUOTES = [
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
 let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
+let editingRecipeId = null;
+
+// Gestione WakeLock (Schermo sempre attivo)
+let wakeLockSentinel = null;
+
+// Gestione Timer Cucina
+let timerInterval = null;
+let timerSecondsRemaining = 0;
+
+// Variabili per Scaler Porzioni nel Modale
+let currentOpenRecipe = null;
+let currentModalServings = 4;
 
 window.onload = () => {
   const quoteEl = document.getElementById("quote-display");
@@ -59,6 +71,12 @@ window.onload = () => {
   updateSubcatOptions();
   buildPantryUI();
   renderRecipes();
+
+  // Ricerca testuale immediata
+  const searchInput = document.getElementById("search-keyword");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => renderRecipes());
+  }
 };
 
 function switchTab(tabId, btn) {
@@ -69,16 +87,12 @@ function switchTab(tabId, btn) {
   navButtons.forEach(el => el.classList.remove('active'));
 
   const targetView = document.getElementById('view-' + tabId);
-  if (targetView) {
-    targetView.classList.add('active');
-  }
+  if (targetView) targetView.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (tabId === 'recipes') renderRecipes();
 
-  if (btn) {
-    btn.classList.add('active');
-  }
-
-  if (tabId === 'recipes') {
-    renderRecipes();
+  if (tabId !== 'add' && editingRecipeId !== null) {
+    resetAddForm();
   }
 
   window.scrollTo(0, 0);
@@ -140,16 +154,16 @@ function updateFilterSubcatOptions() {
   }
 }
 
-function addIngredientField() {
+function addIngredientField(presetId = null, presetAmount = "") {
   const container = document.getElementById("recipe-ingredients-form");
   if (!container) return;
   const row = document.createElement("div");
   row.className = "ingredient-row";
   
-  let opts = INGREDIENTS_DB.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
+  let opts = INGREDIENTS_DB.map(i => `<option value="${i.id}" ${presetId === i.id ? 'selected' : ''}>${i.name} (${i.unit})</option>`).join("");
   row.innerHTML = `
     <select class="ing-select" style="flex:2">${opts}</select>
-    <input type="number" class="ing-amount" placeholder="Q.tà" style="flex:1" min="1">
+    <input type="number" class="ing-amount" placeholder="Q.tà" value="${presetAmount}" style="flex:1" min="1">
     <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;font-weight:bold;padding:0 6px;font-size:1.1rem;">✕</button>
   `;
   container.appendChild(row);
@@ -177,6 +191,28 @@ function compressImage(file) {
   });
 }
 
+function resetAddForm() {
+  editingRecipeId = null;
+  document.getElementById("rec-title").value = "";
+  document.getElementById("rec-procedure").value = "";
+  document.getElementById("rec-photo").value = "";
+  document.getElementById("rec-rating").value = "5";
+  document.getElementById("rec-servings").value = "4";
+  document.getElementById("recipe-ingredients-form").innerHTML = "";
+
+  const titlePage = document.querySelector("#view-add .page-title");
+  if (titlePage) titlePage.innerText = "Nuova Ricetta";
+
+  const saveBtn = document.querySelector("#view-add .btn-main");
+  if (saveBtn) saveBtn.innerText = "Salva Ricetta";
+
+  const display = document.getElementById("file-name-display");
+  if (display) {
+    display.innerText = "Carica o scatta foto";
+    display.style.background = "var(--c-cream)";
+  }
+}
+
 async function saveNewRecipe() {
   const title = document.getElementById("rec-title").value.trim();
   if (!title) return alert("Inserisci un titolo");
@@ -184,6 +220,7 @@ async function saveNewRecipe() {
   const macro = document.getElementById("rec-macro").value;
   const subcat = macro === "liquori" ? null : document.getElementById("rec-subcat").value;
   const rating = Number(document.getElementById("rec-rating").value);
+  const servings = Number(document.getElementById("rec-servings").value) || 4;
   const procedure = document.getElementById("rec-procedure").value;
   const photoFile = document.getElementById("rec-photo").files[0];
 
@@ -201,36 +238,100 @@ async function saveNewRecipe() {
     saveBtn.disabled = true;
   }
 
-  const photoBase64 = await compressImage(photoFile);
+  let photoBase64 = null;
+  if (photoFile) {
+    photoBase64 = await compressImage(photoFile);
+  } else if (editingRecipeId !== null) {
+    const existing = recipes.find(r => r.id === editingRecipeId);
+    if (existing) photoBase64 = existing.photo;
+  }
 
-  recipes.push({
-    id: Date.now(),
-    title,
-    macro,
-    subcat,
-    rating,
-    procedure,
-    photo: photoBase64,
-    ingredients
-  });
+  if (editingRecipeId !== null) {
+    const index = recipes.findIndex(r => r.id === editingRecipeId);
+    if (index !== -1) {
+      recipes[index] = {
+        id: editingRecipeId,
+        title,
+        macro,
+        subcat,
+        servings,
+        rating,
+        procedure,
+        photo: photoBase64,
+        ingredients
+      };
+    }
+    alert("Ricetta aggiornata con successo!");
+  } else {
+    recipes.push({
+      id: Date.now(),
+      title,
+      macro,
+      subcat,
+      servings,
+      rating,
+      procedure,
+      photo: photoBase64,
+      ingredients
+    });
+    alert("Ricetta salvata!");
+  }
 
   localStorage.setItem("gf_recipes", JSON.stringify(recipes));
-  if (saveBtn) {
-    saveBtn.innerText = "Salva Ricetta";
-    saveBtn.disabled = false;
-  }
-  alert("Ricetta salvata!");
+  if (saveBtn) saveBtn.disabled = false;
   
-  document.getElementById("rec-title").value = "";
-  document.getElementById("rec-procedure").value = "";
-  document.getElementById("rec-photo").value = "";
+  resetAddForm();
+  switchTab('recipes', document.querySelectorAll('nav button')[0]);
+}
+
+function editRecipe(recipeId) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r) return;
+
+  closeRecipeModal();
+  editingRecipeId = r.id;
+
+  document.getElementById("rec-title").value = r.title;
+  document.getElementById("rec-macro").value = r.macro;
+  updateSubcatOptions();
+
+  if (r.subcat) document.getElementById("rec-subcat").value = r.subcat;
+  document.getElementById("rec-rating").value = r.rating;
+  document.getElementById("rec-servings").value = r.servings || 4;
+  document.getElementById("rec-procedure").value = r.procedure;
+
+  const container = document.getElementById("recipe-ingredients-form");
+  container.innerHTML = "";
+  r.ingredients.forEach(ing => {
+    addIngredientField(ing.id, ing.amount);
+  });
+
   const display = document.getElementById("file-name-display");
   if (display) {
-    display.innerText = "Carica o scatta foto";
-    display.style.background = "var(--c-cream)";
+    display.innerText = r.photo ? "Foto presente (clicca per sostituire)" : "Carica o scatta foto";
+    display.style.background = r.photo ? "var(--c-sky-blue)" : "var(--c-cream)";
   }
-  document.getElementById("recipe-ingredients-form").innerHTML = "";
-  switchTab('recipes', document.querySelectorAll('nav button')[0]);
+
+  const titlePage = document.querySelector("#view-add .page-title");
+  if (titlePage) titlePage.innerText = "Modifica Ricetta";
+
+  const saveBtn = document.querySelector("#view-add .btn-main");
+  if (saveBtn) saveBtn.innerText = "💾 Aggiorna Ricetta";
+
+  switchTab('add', document.querySelectorAll('nav button')[2]);
+}
+
+function deleteRecipe(recipeId) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r) return;
+
+  if (confirm(`Sei sicuro di voler eliminare la ricetta "${r.title}"?`)) {
+    recipes = recipes.filter(item => item.id !== recipeId);
+    localStorage.setItem("gf_recipes", JSON.stringify(recipes));
+    closeRecipeModal();
+    renderRecipes();
+    alert("Ricetta eliminata.");
+  }
 }
 
 function buildPantryUI() {
@@ -275,6 +376,7 @@ function renderRecipes() {
   if (!list) return;
   list.innerHTML = "";
 
+  const keyword = (document.getElementById("search-keyword")?.value || "").toLowerCase().trim();
   const toggleEl = document.getElementById("toggle-doable");
   const onlyDoable = toggleEl ? toggleEl.checked : false;
 
@@ -285,11 +387,27 @@ function renderRecipes() {
   const subcatFilter = subcatSelect ? subcatSelect.value : "tutti";
 
   const filtered = recipes.filter(r => {
+    // 1. Filtro parola chiave
+    if (keyword) {
+      const matchTitle = r.title.toLowerCase().includes(keyword);
+      const matchIngredient = r.ingredients.some(i => {
+        const info = INGREDIENTS_DB.find(db => db.id === i.id);
+        return info && info.name.toLowerCase().includes(keyword);
+      });
+      if (!matchTitle && !matchIngredient) return false;
+    }
+
+    // 2. Filtro Macro
     if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
+    
+    // 3. Filtro Sottocategoria
     if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
       if (r.subcat !== subcatFilter) return false;
     }
+
+    // 4. Filtro Dispensa
     if (onlyDoable && !isRecipeDoable(r)) return false;
+    
     return true;
   });
 
@@ -325,7 +443,7 @@ function renderRecipes() {
           </div>
         </div>
         <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
-          ${r.ingredients.length} ingredienti (tocca per aprire)
+          ${r.ingredients.length} ingredienti • ${r.servings || 4} porzioni
         </div>
       </div>
     `;
@@ -333,19 +451,57 @@ function renderRecipes() {
   });
 }
 
+/* --- DETTAGLIO RICETTA (SCHERMO ATTIVO + TIMER + SCALER) --- */
+
+async function requestWakeLock() {
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLockSentinel = await navigator.wakeLock.request('screen');
+    } catch (err) {
+      console.log('WakeLock non attivo');
+    }
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLockSentinel) {
+    wakeLockSentinel.release();
+    wakeLockSentinel = null;
+  }
+}
+
 function openRecipeModal(recipeId) {
   const r = recipes.find(item => item.id === recipeId);
   if (!r) return;
 
+  currentOpenRecipe = r;
+  currentModalServings = r.servings || 4;
+
+  // Attiva schermo sempre acceso per cucinare
+  requestWakeLock();
+
+  renderModalContent();
+
+  const modal = document.getElementById("recipe-modal");
+  if (modal) modal.classList.add("open");
+}
+
+function renderModalContent() {
+  const r = currentOpenRecipe;
   const doable = isRecipeDoable(r);
   const body = document.getElementById("modal-body");
   if (!body) return;
+
+  const baseServings = r.servings || 4;
+  const ratio = currentModalServings / baseServings;
 
   const ingredientsListHtml = r.ingredients.map(i => {
     const info = INGREDIENTS_DB.find(db => db.id === i.id);
     const name = info ? info.name : i.id;
     const unit = info ? info.unit : '';
-    return `<div class="modal-ingredient-item">• ${name}: <strong>${i.amount} ${unit}</strong></div>`;
+    // Scalatura proporzionale arrotondata
+    let scaledAmount = Math.round(i.amount * ratio * 10) / 10;
+    return `<div class="modal-ingredient-item">• ${name}: <strong>${scaledAmount} ${unit}</strong></div>`;
   }).join("");
 
   body.innerHTML = `
@@ -358,24 +514,173 @@ function openRecipeModal(recipeId) {
     </div>
     <div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
 
-    <div class="modal-section-title">Ingredienti</div>
+    <div class="modal-section-title">
+      <span>Ingredienti</span>
+      <div class="portion-scaler">
+        <button class="btn-portion" onclick="adjustServings(-1)">-</button>
+        <span style="font-size:0.9rem; font-weight:700;">${currentModalServings} porzioni</span>
+        <button class="btn-portion" onclick="adjustServings(1)">+</button>
+      </div>
+    </div>
     <div style="margin-bottom: 14px;">${ingredientsListHtml.length > 0 ? ingredientsListHtml : '<p>Nessun ingrediente inserito.</p>'}</div>
 
     <div class="modal-section-title">Procedimento</div>
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
-  `;
 
-  const modal = document.getElementById("recipe-modal");
-  if (modal) modal.classList.add("open");
+    <!-- Timer Cucina Integrato -->
+    <div class="kitchen-timer-box">
+      <div style="font-size: 1rem; font-weight: 700; color: var(--c-cream);">⏱️ Timer di Cottura</div>
+      <div class="timer-display" id="timer-clock">00:00</div>
+      <div class="timer-controls">
+        <input type="number" id="timer-minutes-input" min="1" max="180" placeholder="Minuti" value="15">
+        <button class="btn-timer" onclick="startKitchenTimer()">Avvia</button>
+        <button class="btn-timer" onclick="resetKitchenTimer()">Stop</button>
+      </div>
+    </div>
+
+    <!-- Pulsanti Azione Modifica / Elimina -->
+    <div class="modal-actions">
+      <button class="btn-action btn-edit" onclick="editRecipe(${r.id})">✏️ Modifica</button>
+      <button class="btn-action btn-delete" onclick="deleteRecipe(${r.id})">🗑️ Elimina</button>
+    </div>
+  `;
+}
+
+function adjustServings(delta) {
+  const newServings = currentModalServings + delta;
+  if (newServings >= 1 && newServings <= 30) {
+    currentModalServings = newServings;
+    renderModalContent();
+  }
+}
+
+// Logica Timer Cucina
+function startKitchenTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+
+  const inputMinutes = Number(document.getElementById("timer-minutes-input")?.value) || 1;
+  timerSecondsRemaining = inputMinutes * 60;
+  updateTimerDisplay();
+
+  timerInterval = setInterval(() => {
+    timerSecondsRemaining--;
+    updateTimerDisplay();
+
+    if (timerSecondsRemaining <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      playBeepSound();
+      alert("⏰ Tempo scaduto per la tua ricetta!");
+    }
+  }, 1000);
+}
+
+function resetKitchenTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  timerSecondsRemaining = 0;
+  updateTimerDisplay();
+}
+
+function updateTimerDisplay() {
+  const clock = document.getElementById("timer-clock");
+  if (!clock) return;
+  const m = Math.floor(timerSecondsRemaining / 60).toString().padStart(2, '0');
+  const s = (timerSecondsRemaining % 60).toString().padStart(2, '0');
+  clock.innerText = `${m}:${s}`;
+}
+
+// Generatore acustico nativo via Web Audio API (nessun file audio esterno da scaricare)
+function playBeepSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    for (let i = 0; i < 3; i++) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880; // Nota La
+      osc.start(audioCtx.currentTime + i * 0.3);
+      osc.stop(audioCtx.currentTime + i * 0.3 + 0.2);
+    }
+  } catch(e) {}
 }
 
 function closeRecipeModal() {
   const modal = document.getElementById("recipe-modal");
   if (modal) modal.classList.remove("open");
+  
+  // Rilascia lo schermo e stoppa il timer
+  releaseWakeLock();
+  resetKitchenTimer();
+  currentOpenRecipe = null;
 }
 
 function closeModalOnBackdrop(event) {
   if (event.target.id === "recipe-modal") {
     closeRecipeModal();
   }
+}
+
+/* --- BACKUP JSON --- */
+
+function exportDataBackup() {
+  const exportPayload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    recipes: recipes,
+    pantry: pantry
+  };
+
+  const jsonString = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
+  const downloadAnchor = document.createElement("a");
+  const fileName = `ricette_gf_backup_${new Date().toISOString().slice(0, 10)}.json`;
+  
+  downloadAnchor.setAttribute("href", jsonString);
+  downloadAnchor.setAttribute("download", fileName);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+}
+
+function importDataBackup(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.recipes || !Array.isArray(data.recipes)) {
+        throw new Error("Formato backup non valido");
+      }
+
+      if (confirm(`Trovate ${data.recipes.length} ricette nel backup. Vuoi sostituire o unire i dati esistenti?\n\nPremi OK per SOSTITUIRE TUTTO\nPremi ANNULLA per UNIRE alle attuali`)) {
+        recipes = data.recipes;
+        pantry = data.pantry || {};
+      } else {
+        const existingIds = new Set(recipes.map(r => r.id));
+        data.recipes.forEach(r => {
+          if (!existingIds.has(r.id)) {
+            recipes.push(r);
+          }
+        });
+        pantry = Object.assign({}, pantry, data.pantry || {});
+      }
+
+      localStorage.setItem("gf_recipes", JSON.stringify(recipes));
+      localStorage.setItem("gf_pantry", JSON.stringify(pantry));
+
+      alert("Dati ripristinati con successo!");
+      buildPantryUI();
+      renderRecipes();
+      input.value = "";
+    } catch (err) {
+      alert("Errore durante la lettura del file di backup: assicurati che sia un file .json valido.");
+    }
+  };
+  reader.readAsText(file);
 }
