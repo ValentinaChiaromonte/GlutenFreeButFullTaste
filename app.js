@@ -471,7 +471,8 @@ function releaseWakeLock() {
 }
 
 function openRecipeModal(recipeId) {
-  const r = recipes.find(item => item.id === recipeId);
+  // Usa == invece di === per evitare conflitti tra ID salvati come testo o numero
+  const r = recipes.find(item => item.id == recipeId);
   if (!r) return;
 
   currentOpenRecipe = r;
@@ -488,6 +489,8 @@ function openRecipeModal(recipeId) {
 
 function renderModalContent() {
   const r = currentOpenRecipe;
+  if (!r) return;
+
   const doable = isRecipeDoable(r);
   const body = document.getElementById("modal-body");
   if (!body) return;
@@ -495,24 +498,28 @@ function renderModalContent() {
   const baseServings = r.servings || 4;
   const ratio = currentModalServings / baseServings;
 
-  const ingredientsListHtml = r.ingredients.map(i => {
+  const ingredientsListHtml = (r.ingredients || []).map(i => {
     const info = INGREDIENTS_DB.find(db => db.id === i.id);
     const name = info ? info.name : i.id;
     const unit = info ? info.unit : '';
-    // Scalatura proporzionale arrotondata
     let scaledAmount = Math.round(i.amount * ratio * 10) / 10;
     return `<div class="modal-ingredient-item">• ${name}: <strong>${scaledAmount} ${unit}</strong></div>`;
   }).join("");
 
+  // Gestione foto: se c'è mostra la foto, altrimenti un placeholder coerente
+  const imageHtml = r.photo 
+    ? `<img src="${r.photo}" class="modal-img" alt="${r.title}">` 
+    : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;background:var(--c-sky-blue);">🍽️</div>`;
+
   body.innerHTML = `
-    ${r.photo ? `<img src="${r.photo}" class="modal-img">` : ''}
+    ${imageHtml}
     <h3 class="modal-title">${r.title}</h3>
     <div style="margin-bottom: 10px;">
-      <span class="badge badge-macro">${r.macro.toUpperCase()}</span>
+      <span class="badge badge-macro">${(r.macro || '').toUpperCase()}</span>
       ${r.subcat ? `<span class="badge badge-sub">${r.subcat.toUpperCase()}</span>` : ''}
       ${doable ? `<span class="badge badge-doable">FATTIBILE ORA</span>` : ''}
     </div>
-    <div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+    <div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))}</div>
 
     <div class="modal-section-title">
       <span>Ingredienti</span>
@@ -540,8 +547,8 @@ function renderModalContent() {
 
     <!-- Pulsanti Azione Modifica / Elimina -->
     <div class="modal-actions">
-      <button class="btn-action btn-edit" onclick="editRecipe(${r.id})">✏️ Modifica</button>
-      <button class="btn-action btn-delete" onclick="deleteRecipe(${r.id})">🗑️ Elimina</button>
+      <button class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
+      <button class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
     </div>
   `;
 }
