@@ -1,11 +1,11 @@
 const INGREDIENTS_DB = [
   // Farine e Amidi
+  { id: "mix_farine", name: "Mix di farine", unit: "g", staple: false },
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
-  { id: "maizena", name: "Maizena / Amido di mais", unit: "g", staple: false },
+  { id: "maizena", name: "Amido di mais", unit: "g", staple: false },
   { id: "fecola", name: "Fecola di patate", unit: "g", staple: false },
   { id: "farina_ceci", name: "Farina di ceci", unit: "g", staple: false },
   { id: "farina_cocco", name: "Farina di cocco", unit: "g", staple: false },
-  { id: "mix_farine", name: "Mix di farine", unit: "g", staple: false },
   { id: "prep_dolci", name: "Preparato per dolci", unit: "g", staple: false },
   { id: "prep_salati", name: "Preparato per salati", unit: "g", staple: false },
 
@@ -19,19 +19,25 @@ const INGREDIENTS_DB = [
   { id: "burro", name: "Burro", unit: "g", staple: false },
   { id: "panna_fresca", name: "Panna fresca", unit: "ml", staple: false },
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
-  { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
 
   // Condimenti e Altro
   { id: "salsa", name: "Salsa", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
+  { id: "cacao", name: "Cacao", unit: "g", staple: false },
   { id: "uova", name: "Uova", unit: "pz", staple: false },
+  { id: "biscotti secchi", name: "Biscotti secchi", unit: "g", staple: false },
+  { id: "vanillina", name: "Vanillina", unit: "g", staple: false },
 
   // Ingredienti base e condimenti trascurabili
   { id: "condimenti_piacere", name: "Condimenti a piacere", unit: "g", staple: true },
   { id: "sale", name: "Sale", unit: "g", staple: true },
   { id: "acqua", name: "Acqua", unit: "ml", staple: true },
-  { id: "olio", name: "Olio extravergine", unit: "ml", staple: true }
+  { id: "olioo", name: "Olio d'oliva", unit: "ml", staple: true },
+  { id: "olios", name: "Olio di semi", unit: "ml", staple: true }
+
+  //Alcool
+  { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
 ];
 
 const SUBCATS = {
@@ -43,7 +49,14 @@ const QUOTES = [
   "Il glutine non fa per me, io preferisco brillare!",
   "Niente glutine, tanto gusto.",
   "Celiaco ma con stile (e farina di riso).",
-  "Il grano saluta, noi ci divertiamo comunque."
+  "Il grano saluta, noi ci divertiamo comunque.",
+  "Il pane senza glutine ha solo due stati d'animo: sbriciolarsi al solo sguardo o essere scambiato per un mattone da costruzione",
+  "Non ho un mutuo per la casa, sto solo pagando a rate la mia scorta mensile di biscotti gluten-free.",
+  "Comprare la pasta senza glutine è il modo più elegante per sentirsi investitori in borsa.",
+  "Il vero amore non è regalare rose, è ricordare di non toccare il mio pane con le mani infarinate.",
+  "Gluten-free: dove un morso costa 4 euro e il resto finisce in briciole",
+  "Volevo essere ricco, poi sono diventato celiaco.",
+  "La birra normale è la mia ex tossica: bellissima, ma mi distruggeva dentro.",
 ];
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
