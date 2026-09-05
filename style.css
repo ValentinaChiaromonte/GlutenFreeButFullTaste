@@ -11,15 +11,14 @@
   --radius-sm: 12px;
 }
 
-/* Regola globale: Chewy ovunque, nessun corsivo, testo nero */
 *, body, input, select, textarea, button, label, span, p, h1, h2, h3, h4, h5, h6 {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   outline: none;
   color: #000000 !important;
   font-style: normal !important;
-  font-family: 'Chewy', cursive !important;
-  letter-spacing: 0.5px;
+  font-family: 'Playpen Sans', cursive !important;
+  letter-spacing: 0.2px;
 }
 
 body {
