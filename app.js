@@ -33,7 +33,7 @@ let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")
 let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
-  dolci: ["Biscotti", "Merenda", "Torte" , "Feste"],
+  dolci: ["Biscotti", "Merenda", "Torte", "Feste"],
   salati: ["Primi", "Secondi", "Cena", "Contorni", "Stuzzichini"]
 };
 
@@ -147,6 +147,10 @@ function getIngredientOptionsHtml(selectedId = null) {
   let html = `<option value="">-- Seleziona --</option>`;
   html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
   
+  if (customIngredients.length > 0) {
+    html += `<option value="__MANAGE__" style="font-weight: bold; background-color: #fca5a5;">🗑️ Elimina un ingrediente creato...</option>`;
+  }
+
   const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) => 
     a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
   );
@@ -181,6 +185,49 @@ function handleIngredientSelectChange(selectEl) {
 
     selectEl.value = id;
     buildPantryUI();
+    showToast("Ingrediente aggiunto!");
+  } else if (selectEl.value === "__MANAGE__") {
+    deleteCustomIngredientPrompt();
+    selectEl.value = "";
+  }
+}
+
+function deleteCustomIngredientPrompt() {
+  if (customIngredients.length === 0) {
+    return showToast("Nessun ingrediente personalizzato da eliminare.");
+  }
+
+  let promptText = "Digita il NUMERO dell'ingrediente da eliminare definitivamente:\n\n";
+  customIngredients.forEach((ing, index) => {
+    promptText += `${index + 1}) ${ing.name} (${ing.unit})\n`;
+  });
+
+  const choice = prompt(promptText);
+  if (!choice) return;
+
+  const selectedIndex = parseInt(choice.trim(), 10) - 1;
+  if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= customIngredients.length) {
+    return showToast("Scelta non valida");
+  }
+
+  const removed = customIngredients[selectedIndex];
+  if (confirm(`Confermi di voler eliminare "${removed.name}" da tutti i menu e dalla dispensa?`)) {
+    customIngredients.splice(selectedIndex, 1);
+    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
+    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
+
+    if (pantry[removed.id]) {
+      delete pantry[removed.id];
+      localStorage.setItem("gf_pantry", JSON.stringify(pantry));
+    }
+
+    document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
+      const curVal = sel.value === removed.id ? "" : sel.value;
+      sel.innerHTML = getIngredientOptionsHtml(curVal);
+    });
+
+    buildPantryUI();
+    showToast(`"${removed.name}" rimosso con successo!`);
   }
 }
 
@@ -269,7 +316,7 @@ async function saveNewRecipe() {
   ingRows.forEach(row => {
     const id = row.querySelector(".ing-select").value;
     const amount = Number(row.querySelector(".ing-amount").value);
-    if (id && id !== "__NEW__" && amount > 0) {
+    if (id && id !== "__NEW__" && id !== "__MANAGE__" && amount > 0) {
       ingredients.push({ id, amount });
     }
   });
