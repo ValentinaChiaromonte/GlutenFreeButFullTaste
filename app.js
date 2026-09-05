@@ -1,4 +1,4 @@
-const INGREDIENTS_DB = [
+const BASE_INGREDIENTS = [
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
   { id: "maizena", name: "Amido di mais", unit: "g", staple: false },
   { id: "fecola", name: "Fecola di patate", unit: "g", staple: false },
@@ -28,6 +28,10 @@ const INGREDIENTS_DB = [
   { id: "olio_oliva", name: "Olio extravergine d'oliva", unit: "ml", staple: true },
   { id: "olio_semi", name: "Olio di semi", unit: "ml", staple: true }
 ];
+
+// Caricamento ingredienti personalizzati da memoria
+let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")) || [];
+let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
   dolci: ["Festività", "Merenda"],
@@ -134,21 +138,63 @@ function updateFilterSubcatOptions() {
   }
 }
 
+// Genera opzioni ordinate alfabeticamente per nome
+function getIngredientOptionsHtml(selectedId = null) {
+  let html = `<option value="">-- Seleziona --</option>`;
+  html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
+  
+  // Ordinamento alfabetico A-Z
+  const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) => 
+    a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
+  );
+
+  html += sortedIngredients.map(i => `<option value="${i.id}" ${selectedId === i.id ? 'selected' : ''}>${i.name} (${i.unit})</option>`).join("");
+  return html;
+}
+
+function handleIngredientSelectChange(selectEl) {
+  if (selectEl.value === "__NEW__") {
+    const name = prompt("Nome del nuovo ingrediente:");
+    if (!name || !name.trim()) {
+      selectEl.value = "";
+      return;
+    }
+
+    let unit = prompt("Unità di misura (es. g, ml, pz):", "g");
+    unit = unit ? unit.trim().toLowerCase() : "g";
+
+    const cleanName = name.trim();
+    const id = "custom_" + Date.now();
+    const newIng = { id, name: cleanName, unit, staple: false };
+
+    customIngredients.push(newIng);
+    INGREDIENTS_DB.push(newIng);
+    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
+
+    // Aggiorna tutti i menu a tendina già inseriti preservando le selezioni
+    document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
+      const curVal = sel.value;
+      sel.innerHTML = getIngredientOptionsHtml(curVal === "__NEW__" ? id : curVal);
+    });
+
+    selectEl.value = id;
+    buildPantryUI();
+  }
+}
+
 function addIngredientField(presetId = null, presetAmount = "") {
   const container = document.getElementById("recipe-ingredients-form");
   if (!container) return;
   const row = document.createElement("div");
   row.className = "ingredient-row";
   
-  let opts = INGREDIENTS_DB.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join("");
   row.innerHTML = `
-    <select class="ing-select" style="flex:2">${opts}</select>
+    <select class="ing-select" style="flex:2" onchange="handleIngredientSelectChange(this)">
+      ${getIngredientOptionsHtml(presetId)}
+    </select>
     <input type="number" class="ing-amount" placeholder="Q.tà" value="${presetAmount}" style="flex:1" min="1">
     <button type="button" onclick="this.parentElement.remove()" style="border:none;background:none;font-weight:bold;padding:0 6px;font-size:1.1rem;">✕</button>
   `;
-  if (presetId) {
-    row.querySelector(".ing-select").value = presetId;
-  }
   container.appendChild(row);
 }
 
@@ -214,7 +260,9 @@ async function saveNewRecipe() {
   ingRows.forEach(row => {
     const id = row.querySelector(".ing-select").value;
     const amount = Number(row.querySelector(".ing-amount").value);
-    if (amount > 0) ingredients.push({ id, amount });
+    if (id && id !== "__NEW__" && amount > 0) {
+      ingredients.push({ id, amount });
+    }
   });
 
   const saveBtn = document.querySelector("#view-add .btn-main");
@@ -323,7 +371,13 @@ function buildPantryUI() {
   const c = document.getElementById("pantry-inputs");
   if (!c) return;
   c.innerHTML = "";
-  INGREDIENTS_DB.filter(i => !i.staple).forEach(ing => {
+
+  // Ordinamento alfabetico anche nella dispensa
+  const pantryIngredients = INGREDIENTS_DB
+    .filter(i => !i.staple)
+    .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+
+  pantryIngredients.forEach(ing => {
     const val = pantry[ing.id] || 0;
     const div = document.createElement("div");
     div.className = "ingredient-row";
@@ -605,10 +659,11 @@ function closeRecipeModal() {
 
 function exportDataBackup() {
   const exportPayload = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     recipes: recipes,
-    pantry: pantry
+    pantry: pantry,
+    customIngredients: customIngredients
   };
 
   const jsonString = JSON.stringify(exportPayload);
@@ -678,6 +733,17 @@ function processImportedData(data) {
   if (!data.recipes || !Array.isArray(data.recipes)) {
     alert("Formato dati non valido.");
     return;
+  }
+
+  if (data.customIngredients && Array.isArray(data.customIngredients)) {
+    const existingIds = new Set(customIngredients.map(i => i.id));
+    data.customIngredients.forEach(i => {
+      if (!existingIds.has(i.id)) {
+        customIngredients.push(i);
+      }
+    });
+    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
+    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
   }
 
   if (confirm(`Trovate ${data.recipes.length} ricette.\n\nPremi OK per SOSTITUIRE tutto l'archivio.\nPremi ANNULLA per UNIRE alle ricette attuali.`)) {
