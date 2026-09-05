@@ -1,6 +1,6 @@
 const INGREDIENTS_DB = [
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
-  { id: "maizena", name: "Maizena / Amido di mais", unit: "g", staple: false },
+  { id: "maizena", name: "Amido di mais", unit: "g", staple: false },
   { id: "fecola", name: "Fecola di patate", unit: "g", staple: false },
   { id: "farina_ceci", name: "Farina di ceci", unit: "g", staple: false },
   { id: "farina_cocco", name: "Farina di cocco", unit: "g", staple: false },
@@ -19,25 +19,20 @@ const INGREDIENTS_DB = [
   { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
   { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
+  { id: "zucchero_velo", name: "Zucchero a velo", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
   { id: "uova", name: "Uova", unit: "pz", staple: false },
   { id: "condimenti_piacere", name: "Condimenti a piacere", unit: "g", staple: true },
   { id: "sale", name: "Sale", unit: "g", staple: true },
   { id: "acqua", name: "Acqua", unit: "ml", staple: true },
-  { id: "olio", name: "Olio extravergine", unit: "ml", staple: true }
+  { id: "olio_oliva", name: "Olio extravergine d'oliva", unit: "ml", staple: true },
+  { id: "olio_semi", name: "Olio di semi", unit: "ml", staple: true }
 ];
 
 const SUBCATS = {
   dolci: ["Festività", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
-
-const QUOTES = [
-  "Il glutine non fa per me, io preferisco brillare!",
-  "Niente glutine, tanto gusto.",
-  "Celiaco ma con stile (e farina di riso).",
-  "Il grano saluta, noi ci divertiamo comunque."
-];
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
 let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
@@ -303,10 +298,10 @@ function editRecipe(recipeId) {
   }
 
   const titlePage = document.querySelector("#view-add .page-title");
-  if (titlePage) titlePage.innerText = "Modifica Ricetta";
+  if (titlePage) titlePage.innerText = "Modifica";
 
   const saveBtn = document.querySelector("#view-add .btn-main");
-  if (saveBtn) saveBtn.innerText = "💾 Aggiorna Ricetta";
+  if (saveBtn) saveBtn.innerText = "Aggiorna";
 
   switchTab('add', document.querySelectorAll('nav button')[2]);
 }
