@@ -16,7 +16,7 @@ const BASE_INGREDIENTS = [
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
   { id: "cacao", name: "Cacao", unit: "g", staple: false },
   { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
-  { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
+  { id: "salsa", name: "Salsa", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "zucchero_velo", name: "Zucchero a velo", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },

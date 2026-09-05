@@ -125,9 +125,16 @@ nav button svg {
 .filter-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 12px;
   margin-bottom: 12px;
   font-size: 1.25rem;
+  width: 100%;
+}
+.filter-toggle span {
+  text-align: left;
+  margin: 0;
+  padding: 0;
 }
 
 .switch {
