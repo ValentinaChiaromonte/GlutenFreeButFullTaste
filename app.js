@@ -610,10 +610,29 @@ function getAudioContext() {
   return audioContextInstance;
 }
 
+let audioCtx = null;
+
+// Sblocca e prepara l'audio context al tocco dell'utente
+function unlockAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  // Riproduce un millisecondo a volume zero per forzare l'apertura del canale su iOS
+  const buffer = audioCtx.createBuffer(1, 1, 22050);
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  source.start(0);
+}
+
 function startKitchenTimer() {
   if (timerInterval) clearInterval(timerInterval);
 
-  getAudioContext();
+  // Sblocco immediato del canale sonoro legato al tocco del pulsante
+  unlockAudioContext();
 
   const inputMinutes = Number(document.getElementById("timer-minutes-input")?.value) || 1;
   timerSecondsRemaining = inputMinutes * 60;
@@ -626,10 +645,49 @@ function startKitchenTimer() {
     if (timerSecondsRemaining <= 0) {
       clearInterval(timerInterval);
       timerInterval = null;
+      
+      // Emette il segnale acustico ad alto volume
       playBeepSound();
-      alert("⏰ Tempo scaduto per la tua ricetta!");
+
+      // Lascia suonare i bip prima di bloccare la pagina con il popup
+      setTimeout(() => {
+        alert("⏰ Tempo scaduto per la tua ricetta!");
+      }, 1000);
     }
   }, 1000);
+}
+
+function playBeepSound() {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const beeps = [0, 0.35, 0.7]; // Tre ripetizioni
+    beeps.forEach(delay => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      // 'sawtooth' ha un timbro squillante tipo sveglia da cucina
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime + delay); // Nota La acuta
+
+      const startTime = audioCtx.currentTime + delay;
+      gain.gain.setValueAtTime(0.4, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.25);
+    });
+  } catch (e) {
+    console.warn("Riproduzione audio non riuscita:", e);
+  }
 }
 
 function resetKitchenTimer() {
@@ -647,27 +705,6 @@ function updateTimerDisplay() {
   const m = Math.floor(timerSecondsRemaining / 60).toString().padStart(2, '0');
   const s = (timerSecondsRemaining % 60).toString().padStart(2, '0');
   clock.innerText = `${m}:${s}`;
-}
-
-function playBeepSound() {
-  try {
-    const ctx = getAudioContext();
-    for (let i = 0; i < 3; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.value = 880;
-
-      const startTime = ctx.currentTime + (i * 0.35);
-      gain.gain.setValueAtTime(0.3, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
-
-      osc.start(startTime);
-      osc.stop(startTime + 0.25);
-    }
-  } catch(e) {}
 }
 
 function closeRecipeModal() {
