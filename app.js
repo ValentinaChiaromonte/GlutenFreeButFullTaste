@@ -33,8 +33,8 @@ let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")
 let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
-  dolci: ["Festività", "Merenda"],
-  salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
+  dolci: ["Biscotti", "Merenda", "Torte" , "Feste"],
+  salati: ["Primi", "Secondi", "Cena" "Contorni", "Stuzzichini"]
 };
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
