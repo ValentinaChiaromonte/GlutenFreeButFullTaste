@@ -34,7 +34,7 @@ let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
   dolci: ["Biscotti", "Merenda", "Torte" , "Feste"],
-  salati: ["Primi", "Secondi", "Cena" "Contorni", "Stuzzichini"]
+  salati: ["Primi", "Secondi", "Cena", "Contorni", "Stuzzichini"]
 };
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
