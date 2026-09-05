@@ -21,7 +21,6 @@ const BASE_INGREDIENTS = [
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
   { id: "uova", name: "Uova", unit: "pz", staple: false },
   { id: "condimenti_piacere", name: "Condimenti a piacere", unit: "g", staple: true },
-  { id: "sale", name: "Sale", unit: "g", staple: true },
   { id: "acqua", name: "Acqua", unit: "ml", staple: true },
   { id: "olio_oliva", name: "Olio extravergine d'oliva", unit: "ml", staple: true },
   { id: "olio_semi", name: "Olio di semi", unit: "ml", staple: true }
