@@ -34,16 +34,9 @@ let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")
 let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
-  dolci: ["Festività", "Merenda"],
+  dolci: ["Feste", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
-
-const QUOTES = [
-  "Il glutine non fa per me, io preferisco brillare!",
-  "Niente glutine, tanto gusto.",
-  "Celiaco ma con stile (e farina di riso).",
-  "Il grano saluta, noi ci divertiamo comunque."
-];
 
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
 let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
