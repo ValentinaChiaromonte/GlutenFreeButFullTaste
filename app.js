@@ -14,7 +14,6 @@ const BASE_INGREDIENTS = [
   { id: "burro", name: "Burro", unit: "g", staple: false },
   { id: "panna_fresca", name: "Panna fresca", unit: "ml", staple: false },
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
-  { id: "alcool_96", name: "Alcool 96°", unit: "ml", staple: false },
   { id: "cacao", name: "Cacao", unit: "g", staple: false },
   { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
   { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
@@ -34,7 +33,7 @@ let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")
 let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
-  dolci: ["Feste", "Merenda"],
+  dolci: ["Festività", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
 
@@ -49,10 +48,6 @@ let currentOpenRecipe = null;
 let currentModalServings = 4;
 
 window.onload = () => {
-  const quoteEl = document.getElementById("quote-display");
-  if (quoteEl) {
-    quoteEl.innerText = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-  }
   updateSubcatOptions();
   buildPantryUI();
   renderRecipes();
@@ -96,24 +91,18 @@ function updateFileName(input) {
 
 function updateSubcatOptions() {
   const macroEl = document.getElementById("rec-macro");
-  const subcatContainer = document.getElementById("subcat-container");
   const subcatSelect = document.getElementById("rec-subcat");
-  if (!macroEl || !subcatContainer || !subcatSelect) return;
+  if (!macroEl || !subcatSelect) return;
 
   const macro = macroEl.value;
   subcatSelect.innerHTML = "";
 
-  if (macro === "liquori") {
-    subcatContainer.style.display = "none";
-  } else {
-    subcatContainer.style.display = "block";
-    (SUBCATS[macro] || []).forEach(s => {
-      const opt = document.createElement("option");
-      opt.value = s.toLowerCase();
-      opt.innerText = s;
-      subcatSelect.appendChild(opt);
-    });
-  }
+  (SUBCATS[macro] || []).forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.toLowerCase();
+    opt.innerText = s;
+    subcatSelect.appendChild(opt);
+  });
 }
 
 function updateFilterSubcatOptions() {
@@ -226,7 +215,7 @@ function resetAddForm() {
   document.getElementById("rec-procedure").value = "";
   document.getElementById("rec-photo").value = "";
   document.getElementById("rec-rating").value = "5";
-  document.getElementById("rec-servings").value = "4";
+  document.getElementById("rec-servings").value = "1";
   const timerInput = document.getElementById("rec-timer-min");
   if (timerInput) timerInput.value = "";
   document.getElementById("recipe-ingredients-form").innerHTML = "";
@@ -249,9 +238,9 @@ async function saveNewRecipe() {
   if (!title) return alert("Inserisci un titolo");
 
   const macro = document.getElementById("rec-macro").value;
-  const subcat = macro === "liquori" ? null : document.getElementById("rec-subcat").value;
+  const subcat = document.getElementById("rec-subcat").value;
   const rating = Number(document.getElementById("rec-rating").value);
-  const servings = Number(document.getElementById("rec-servings").value) || 4;
+  const servings = Number(document.getElementById("rec-servings").value) || 1;
   
   const timerInput = document.getElementById("rec-timer-min");
   const timerMinutesVal = timerInput ? timerInput.value.trim() : "";
@@ -337,7 +326,7 @@ function editRecipe(recipeId) {
 
   if (r.subcat) document.getElementById("rec-subcat").value = r.subcat;
   document.getElementById("rec-rating").value = r.rating;
-  document.getElementById("rec-servings").value = r.servings || 4;
+  document.getElementById("rec-servings").value = r.servings || 1;
   
   const timerInput = document.getElementById("rec-timer-min");
   if (timerInput) timerInput.value = r.timerMinutes || "";
@@ -493,7 +482,7 @@ function renderRecipes() {
           </div>
         </div>
         <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
-          ${(r.ingredients || []).length} ingredienti • ${r.servings || 4} porzioni
+          ${(r.ingredients || []).length} ingredienti • ${r.servings || 1} porzioni
         </div>
       </div>
     `;
@@ -523,7 +512,7 @@ function openRecipeModal(recipeId) {
   if (!r) return;
 
   currentOpenRecipe = r;
-  currentModalServings = r.servings || 4;
+  currentModalServings = r.servings || 1;
 
   requestWakeLock();
   renderModalContent();
@@ -540,7 +529,7 @@ function renderModalContent() {
   const body = document.getElementById("modal-body");
   if (!body) return;
 
-  const baseServings = r.servings || 4;
+  const baseServings = r.servings || 1;
   const ratio = currentModalServings / baseServings;
 
   const ingredientsListHtml = (r.ingredients || []).map(i => {
