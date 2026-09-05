@@ -11,13 +11,15 @@
   --radius-sm: 12px;
 }
 
-* {
+/* Regola globale: Chewy ovunque, nessun corsivo, testo nero */
+*, body, input, select, textarea, button, label, span, p, h1, h2, h3, h4, h5, h6 {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   outline: none;
   color: #000000 !important;
   font-style: normal !important;
-  font-family: 'Story Script', cursive;
+  font-family: 'Chewy', cursive !important;
+  letter-spacing: 0.5px;
 }
 
 body {
@@ -26,12 +28,6 @@ body {
   background-color: var(--c-teal);
   padding-bottom: calc(95px + env(safe-area-inset-bottom));
   line-height: 1.4;
-}
-
-.app-title, .page-title, .modal-title, .modal-section-title {
-  font-family: 'Chewy', cursive !important;
-  font-style: normal !important;
-  letter-spacing: 0.5px;
 }
 
 header {
@@ -45,12 +41,12 @@ header {
 }
 
 .app-title {
-  font-size: 1.8rem;
+  font-size: 1.9rem;
   line-height: 1.1;
 }
 
 .quote-box {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
   margin-top: 6px;
   background: transparent !important;
   border: none !important;
@@ -62,12 +58,13 @@ header {
 .container { padding: 18px; max-width: 600px; margin: 0 auto; }
 
 .page-title {
-  font-size: 1.65rem;
+  font-size: 1.7rem;
   margin: 0 0 14px 0;
+  text-align: center;
 }
 
 p.info {
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   margin-bottom: 16px;
   background: rgba(249, 235, 224, 0.45);
   padding: 10px 14px;
@@ -97,8 +94,7 @@ nav button {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 1.05rem;
   cursor: pointer;
   width: 30%;
   opacity: 0.55;
@@ -131,8 +127,7 @@ nav button svg {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
-  font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.25rem;
 }
 
 .switch {
@@ -195,8 +190,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   min-width: 0;
 }
 .recipe-title {
-  font-family: 'Chewy', cursive !important;
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   margin: 0 0 4px 0;
   white-space: nowrap;
   overflow: hidden;
@@ -208,8 +202,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   display: inline-block;
   padding: 3px 10px;
   border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 0.95rem;
   text-transform: uppercase;
   border: 1px solid rgba(0,0,0,0.2);
 }
@@ -217,17 +210,17 @@ input:checked + .slider:before { transform: translateX(22px); }
 .badge-macro { background: var(--c-teal); }
 .badge-sub { background: var(--c-cream); }
 
-.stars { margin: 2px 0; font-size: 1rem; letter-spacing: -1px; }
+.stars { margin: 2px 0; font-size: 1.1rem; letter-spacing: -1px; }
 
 .form-group { margin-bottom: 14px; }
-label { display: block; font-weight: 700; margin-bottom: 5px; font-size: 1.05rem; }
+label { display: block; margin-bottom: 5px; font-size: 1.15rem; }
 
 input, select, textarea {
   width: 100%;
   padding: 12px 16px;
   border: 2px solid var(--c-dark-teal);
   border-radius: var(--radius-lg);
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   background: var(--c-sky-blue);
 }
 input:focus, select:focus, textarea:focus {
@@ -251,8 +244,7 @@ button.btn-main {
   border: 2.5px solid var(--c-dark-teal);
   border-radius: var(--radius-xl);
   padding: 14px;
-  font-size: 1.15rem;
-  font-weight: 800;
+  font-size: 1.25rem;
   width: 100%;
   margin-top: 14px;
   cursor: pointer;
@@ -265,8 +257,7 @@ button.btn-add-ing {
   padding: 8px 16px;
   border-radius: var(--radius-md);
   margin-top: 6px;
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   cursor: pointer;
 }
 
@@ -290,9 +281,8 @@ button.btn-add-ing {
   background: var(--c-cream);
   border: 2px dashed var(--c-dark-teal);
   border-radius: var(--radius-lg);
-  font-weight: 700;
   text-align: center;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
 }
 
 /* Modale isolato */
@@ -330,8 +320,7 @@ button.btn-add-ing {
   border-radius: 50%;
   width: 36px;
   height: 36px;
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 1.2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -351,13 +340,13 @@ button.btn-add-ing {
 }
 
 .modal-title {
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   margin: 0 0 6px 0;
   line-height: 1.2;
 }
 
 .modal-section-title {
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   margin: 16px 0 6px 0;
   border-bottom: 2px dashed var(--c-dark-teal);
   padding-bottom: 4px;
@@ -371,11 +360,11 @@ button.btn-add-ing {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   margin-bottom: 6px;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
 }
 
 .modal-procedure-text {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   white-space: pre-line;
   line-height: 1.5;
   background: rgba(255,255,255,0.4);
@@ -399,12 +388,11 @@ button.btn-add-ing {
   border-radius: 50%;
   width: 28px;
   height: 28px;
-  font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .kitchen-timer-box {
@@ -419,8 +407,7 @@ button.btn-add-ing {
   gap: 8px;
 }
 .timer-display {
-  font-family: 'Chewy', cursive !important;
-  font-size: 2rem;
+  font-size: 2.2rem;
   color: var(--c-cream) !important;
   letter-spacing: 2px;
 }
@@ -440,8 +427,7 @@ button.btn-add-ing {
   border: 2px solid var(--c-dark-teal);
   border-radius: var(--radius-sm);
   padding: 8px;
-  font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   cursor: pointer;
 }
 
@@ -454,8 +440,7 @@ button.btn-add-ing {
   flex: 1;
   padding: 12px;
   border-radius: var(--radius-lg);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 1.15rem;
   cursor: pointer;
   border: 2px solid var(--c-dark-teal);
 }
