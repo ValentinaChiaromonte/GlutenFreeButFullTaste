@@ -453,3 +453,27 @@ button.btn-add-ing {
 }
 .btn-edit { background: var(--c-sky-blue); }
 .btn-delete { background: #f87171; color: #000000 !important; }
+
+/* Notifica Toast con auto-chiusura */
+.toast-notification {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--c-cream);
+  border: 3px solid var(--c-dark-teal);
+  border-radius: var(--radius-xl);
+  padding: 16px 24px;
+  font-size: 1.25rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  z-index: 10000;
+  text-align: center;
+  max-width: 85%;
+  pointer-events: none;
+  animation: toastFade 0.2s ease;
+}
+
+@keyframes toastFade {
+  from { opacity: 0; transform: translate(-50%, -40%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}

@@ -16,7 +16,7 @@ const BASE_INGREDIENTS = [
   { id: "panna_cucina", name: "Panna da cucina", unit: "ml", staple: false },
   { id: "cacao", name: "Cacao", unit: "g", staple: false },
   { id: "biscotti_secchi", name: "Biscotti secchi", unit: "g", staple: false },
-  { id: "salsa", name: "Salsa", unit: "g", staple: false },
+  { id: "salsa", name: "Salsa / Passata", unit: "g", staple: false },
   { id: "zucchero", name: "Zucchero", unit: "g", staple: false },
   { id: "zucchero_velo", name: "Zucchero a velo", unit: "g", staple: false },
   { id: "cioccolato", name: "Cioccolato fondente", unit: "g", staple: false },
@@ -33,7 +33,7 @@ let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")
 let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
 const SUBCATS = {
-  dolci: ["Feste", "Merenda"],
+  dolci: ["Festività", "Merenda"],
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
 
@@ -46,6 +46,22 @@ let timerInterval = null;
 let timerSecondsRemaining = 0;
 let currentOpenRecipe = null;
 let currentModalServings = 4;
+let audioCtx = null;
+
+// Notifica a scomparsa automatica dopo 1 secondo (sostituisce alert)
+function showToast(message, duration = 1000) {
+  const existingToast = document.querySelector(".toast-notification");
+  if (existingToast) existingToast.remove();
+
+  const toast = document.createElement("div");
+  toast.className = "toast-notification";
+  toast.innerText = message;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, duration);
+}
 
 window.onload = () => {
   updateSubcatOptions();
@@ -127,7 +143,6 @@ function updateFilterSubcatOptions() {
   }
 }
 
-// Opzioni ordinate alfabeticamente A-Z per nome
 function getIngredientOptionsHtml(selectedId = null) {
   let html = `<option value="">-- Seleziona --</option>`;
   html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
@@ -235,7 +250,7 @@ function resetAddForm() {
 
 async function saveNewRecipe() {
   const title = document.getElementById("rec-title").value.trim();
-  if (!title) return alert("Inserisci un titolo");
+  if (!title) return showToast("Inserisci un titolo");
 
   const macro = document.getElementById("rec-macro").value;
   const subcat = document.getElementById("rec-subcat").value;
@@ -289,7 +304,7 @@ async function saveNewRecipe() {
         ingredients
       };
     }
-    alert("Ricetta aggiornata con successo!");
+    showToast("Ricetta aggiornata con successo!");
   } else {
     recipes.push({
       id: Date.now(),
@@ -303,7 +318,7 @@ async function saveNewRecipe() {
       photo: photoBase64,
       ingredients
     });
-    alert("Ricetta salvata!");
+    showToast("Ricetta salvata!");
   }
 
   localStorage.setItem("gf_recipes", JSON.stringify(recipes));
@@ -363,7 +378,7 @@ function deleteRecipe(recipeId) {
     localStorage.setItem("gf_recipes", JSON.stringify(recipes));
     closeRecipeModal();
     renderRecipes();
-    alert("Ricetta eliminata.");
+    showToast("Ricetta eliminata.");
   }
 }
 
@@ -396,7 +411,7 @@ function savePantry() {
     pantry[ing.id] = val > 0 ? val : 0;
   });
   localStorage.setItem("gf_pantry", JSON.stringify(pantry));
-  alert("Dispensa aggiornata!");
+  showToast("Dispensa aggiornata!");
 }
 
 function isRecipeDoable(recipe) {
@@ -597,22 +612,7 @@ function adjustServings(delta) {
   }
 }
 
-// Inizializzazione audio globale per iPhone
-let audioContextInstance = null;
-
-function getAudioContext() {
-  if (!audioContextInstance) {
-    audioContextInstance = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioContextInstance.state === 'suspended') {
-    audioContextInstance.resume();
-  }
-  return audioContextInstance;
-}
-
-let audioCtx = null;
-
-// Sblocca e prepara l'audio context al tocco dell'utente
+// Sblocco audio per iPhone
 function unlockAudioContext() {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -620,7 +620,6 @@ function unlockAudioContext() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
-  // Riproduce un millisecondo a volume zero per forzare l'apertura del canale su iOS
   const buffer = audioCtx.createBuffer(1, 1, 22050);
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
@@ -631,7 +630,6 @@ function unlockAudioContext() {
 function startKitchenTimer() {
   if (timerInterval) clearInterval(timerInterval);
 
-  // Sblocco immediato del canale sonoro legato al tocco del pulsante
   unlockAudioContext();
 
   const inputMinutes = Number(document.getElementById("timer-minutes-input")?.value) || 1;
@@ -646,48 +644,13 @@ function startKitchenTimer() {
       clearInterval(timerInterval);
       timerInterval = null;
       
-      // Emette il segnale acustico ad alto volume
       playBeepSound();
 
-      // Lascia suonare i bip prima di bloccare la pagina con il popup
       setTimeout(() => {
-        alert("⏰ Tempo scaduto per la tua ricetta!");
+        showToast("⏰ Tempo scaduto per la tua ricetta!", 2000);
       }, 1000);
     }
   }, 1000);
-}
-
-function playBeepSound() {
-  try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-
-    const beeps = [0, 0.35, 0.7]; // Tre ripetizioni
-    beeps.forEach(delay => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      // 'sawtooth' ha un timbro squillante tipo sveglia da cucina
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime + delay); // Nota La acuta
-
-      const startTime = audioCtx.currentTime + delay;
-      gain.gain.setValueAtTime(0.4, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
-
-      osc.start(startTime);
-      osc.stop(startTime + 0.25);
-    });
-  } catch (e) {
-    console.warn("Riproduzione audio non riuscita:", e);
-  }
 }
 
 function resetKitchenTimer() {
@@ -705,6 +668,38 @@ function updateTimerDisplay() {
   const m = Math.floor(timerSecondsRemaining / 60).toString().padStart(2, '0');
   const s = (timerSecondsRemaining % 60).toString().padStart(2, '0');
   clock.innerText = `${m}:${s}`;
+}
+
+function playBeepSound() {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const beeps = [0, 0.35, 0.7];
+    beeps.forEach(delay => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime + delay);
+
+      const startTime = audioCtx.currentTime + delay;
+      gain.gain.setValueAtTime(0.4, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.25);
+    });
+  } catch (e) {
+    console.warn("Riproduzione audio non riuscita:", e);
+  }
 }
 
 function closeRecipeModal() {
@@ -752,24 +747,24 @@ function copyBackupToClipboard() {
   if (!textarea || !textarea.value) return;
 
   navigator.clipboard.writeText(textarea.value).then(() => {
-    alert("✅ Codice di backup copiato! Ora puoi incollarlo nelle Note o inviarlo al tablet.");
+    showToast("✅ Codice di backup copiato!");
   }).catch(() => {
     textarea.select();
     document.execCommand("copy");
-    alert("✅ Codice selezionato e copiato negli appunti!");
+    showToast("✅ Codice copiato negli appunti!");
   });
 }
 
 function importFromTextArea() {
   const textarea = document.getElementById("backup-text-area");
   const rawData = textarea ? textarea.value.trim() : "";
-  if (!rawData) return alert("Incolla prima il testo del backup nel riquadro.");
+  if (!rawData) return showToast("Incolla prima il testo del backup");
 
   try {
     const data = JSON.parse(rawData);
     processImportedData(data);
   } catch(err) {
-    alert("Il testo inserito non è valido. Assicurati di aver copiato tutto il codice.");
+    showToast("Il testo inserito non è valido");
   }
 }
 
@@ -784,7 +779,7 @@ function importDataBackup(input) {
       processImportedData(data);
       input.value = "";
     } catch (err) {
-      alert("Errore durante la lettura del file di backup.");
+      showToast("Errore lettura file di backup");
     }
   };
   reader.readAsText(file);
@@ -792,7 +787,7 @@ function importDataBackup(input) {
 
 function processImportedData(data) {
   if (!data.recipes || !Array.isArray(data.recipes)) {
-    alert("Formato dati non valido.");
+    showToast("Formato dati non valido");
     return;
   }
 
@@ -823,7 +818,7 @@ function processImportedData(data) {
   localStorage.setItem("gf_recipes", JSON.stringify(recipes));
   localStorage.setItem("gf_pantry", JSON.stringify(pantry));
 
-  alert("Dati ripristinati con successo!");
+  showToast("Dati ripristinati con successo!");
   buildPantryUI();
   renderRecipes();
 }
