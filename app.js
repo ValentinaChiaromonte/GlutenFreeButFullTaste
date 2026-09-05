@@ -38,6 +38,13 @@ const SUBCATS = {
   salati: ["Primi", "Secondi", "Contorni", "Stuzzichini"]
 };
 
+const QUOTES = [
+  "Il glutine non fa per me, io preferisco brillare!",
+  "Niente glutine, tanto gusto.",
+  "Celiaco ma con stile (e farina di riso).",
+  "Il grano saluta, noi ci divertiamo comunque."
+];
+
 let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
 let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
 let editingRecipeId = null;
@@ -138,12 +145,11 @@ function updateFilterSubcatOptions() {
   }
 }
 
-// Genera opzioni ordinate alfabeticamente per nome
+// Opzioni ordinate alfabeticamente A-Z per nome
 function getIngredientOptionsHtml(selectedId = null) {
   let html = `<option value="">-- Seleziona --</option>`;
   html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
   
-  // Ordinamento alfabetico A-Z
   const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) => 
     a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
   );
@@ -171,7 +177,6 @@ function handleIngredientSelectChange(selectEl) {
     INGREDIENTS_DB.push(newIng);
     localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
 
-    // Aggiorna tutti i menu a tendina già inseriti preservando le selezioni
     document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
       const curVal = sel.value;
       sel.innerHTML = getIngredientOptionsHtml(curVal === "__NEW__" ? id : curVal);
@@ -229,6 +234,8 @@ function resetAddForm() {
   document.getElementById("rec-photo").value = "";
   document.getElementById("rec-rating").value = "5";
   document.getElementById("rec-servings").value = "4";
+  const timerInput = document.getElementById("rec-timer-min");
+  if (timerInput) timerInput.value = "";
   document.getElementById("recipe-ingredients-form").innerHTML = "";
 
   const titlePage = document.querySelector("#view-add .page-title");
@@ -252,6 +259,11 @@ async function saveNewRecipe() {
   const subcat = macro === "liquori" ? null : document.getElementById("rec-subcat").value;
   const rating = Number(document.getElementById("rec-rating").value);
   const servings = Number(document.getElementById("rec-servings").value) || 4;
+  
+  const timerInput = document.getElementById("rec-timer-min");
+  const timerMinutesVal = timerInput ? timerInput.value.trim() : "";
+  const timerMinutes = timerMinutesVal ? Number(timerMinutesVal) : null;
+
   const procedure = document.getElementById("rec-procedure").value;
   const photoFile = document.getElementById("rec-photo").files[0];
 
@@ -288,6 +300,7 @@ async function saveNewRecipe() {
         macro,
         subcat,
         servings,
+        timerMinutes,
         rating,
         procedure,
         photo: photoBase64,
@@ -302,6 +315,7 @@ async function saveNewRecipe() {
       macro,
       subcat,
       servings,
+      timerMinutes,
       rating,
       procedure,
       photo: photoBase64,
@@ -331,6 +345,10 @@ function editRecipe(recipeId) {
   if (r.subcat) document.getElementById("rec-subcat").value = r.subcat;
   document.getElementById("rec-rating").value = r.rating;
   document.getElementById("rec-servings").value = r.servings || 4;
+  
+  const timerInput = document.getElementById("rec-timer-min");
+  if (timerInput) timerInput.value = r.timerMinutes || "";
+
   document.getElementById("rec-procedure").value = r.procedure;
 
   const container = document.getElementById("recipe-ingredients-form");
@@ -372,7 +390,6 @@ function buildPantryUI() {
   if (!c) return;
   c.innerHTML = "";
 
-  // Ordinamento alfabetico anche nella dispensa
   const pantryIngredients = INGREDIENTS_DB
     .filter(i => !i.staple)
     .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
@@ -542,8 +559,21 @@ function renderModalContent() {
   }).join("");
 
   const imageHtml = r.photo 
-    ? `<img src="${r.photo}" class="modal-img">` 
+    ? `<img src="${r.photo}" class="modal-img" onerror="this.onerror=null; this.src=''; this.style.display='none'; document.getElementById('modal-img-fallback').style.display='flex';">
+       <div id="modal-img-fallback" class="modal-img" style="display:none;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>` 
     : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>`;
+
+  const timerHtml = r.timerMinutes ? `
+    <div class="kitchen-timer-box">
+      <div style="font-size: 1rem; color: var(--c-cream);">⏱️ Timer di Cottura</div>
+      <div class="timer-display" id="timer-clock">${String(r.timerMinutes).padStart(2, '0')}:00</div>
+      <div class="timer-controls">
+        <input type="number" id="timer-minutes-input" min="1" max="360" value="${r.timerMinutes}">
+        <button type="button" class="btn-timer" onclick="startKitchenTimer()">Avvia</button>
+        <button type="button" class="btn-timer" onclick="resetKitchenTimer()">Stop</button>
+      </div>
+    </div>
+  ` : '';
 
   body.innerHTML = `
     ${imageHtml}
@@ -559,7 +589,7 @@ function renderModalContent() {
       <span>Ingredienti</span>
       <div class="portion-scaler">
         <button type="button" class="btn-portion" onclick="adjustServings(-1)">-</button>
-        <span style="font-size:0.9rem; font-weight:700;">${currentModalServings} porzioni</span>
+        <span style="font-size:0.9rem;">${currentModalServings} porzioni</span>
         <button type="button" class="btn-portion" onclick="adjustServings(1)">+</button>
       </div>
     </div>
@@ -568,15 +598,7 @@ function renderModalContent() {
     <div class="modal-section-title">Procedimento</div>
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
 
-    <div class="kitchen-timer-box">
-      <div style="font-size: 1rem; font-weight: 700; color: var(--c-cream);">⏱️ Timer di Cottura</div>
-      <div class="timer-display" id="timer-clock">00:00</div>
-      <div class="timer-controls">
-        <input type="number" id="timer-minutes-input" min="1" max="180" placeholder="Minuti" value="15">
-        <button type="button" class="btn-timer" onclick="startKitchenTimer()">Avvia</button>
-        <button type="button" class="btn-timer" onclick="resetKitchenTimer()">Stop</button>
-      </div>
-    </div>
+    ${timerHtml}
 
     <div class="modal-actions">
       <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
@@ -593,8 +615,23 @@ function adjustServings(delta) {
   }
 }
 
+// Inizializzazione audio globale per iPhone
+let audioContextInstance = null;
+
+function getAudioContext() {
+  if (!audioContextInstance) {
+    audioContextInstance = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioContextInstance.state === 'suspended') {
+    audioContextInstance.resume();
+  }
+  return audioContextInstance;
+}
+
 function startKitchenTimer() {
   if (timerInterval) clearInterval(timerInterval);
+
+  getAudioContext();
 
   const inputMinutes = Number(document.getElementById("timer-minutes-input")?.value) || 1;
   timerSecondsRemaining = inputMinutes * 60;
@@ -632,16 +669,21 @@ function updateTimerDisplay() {
 
 function playBeepSound() {
   try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = getAudioContext();
     for (let i = 0; i < 3; i++) {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      gain.connect(ctx.destination);
       osc.type = 'sine';
       osc.frequency.value = 880;
-      osc.start(audioCtx.currentTime + i * 0.3);
-      osc.stop(audioCtx.currentTime + i * 0.3 + 0.2);
+
+      const startTime = ctx.currentTime + (i * 0.35);
+      gain.gain.setValueAtTime(0.3, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.25);
     }
   } catch(e) {}
 }
