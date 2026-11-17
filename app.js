@@ -1,8 +1,5 @@
-// =========================================================
-// INSERISCI QUI I TUOI DATI SUPABASE
-// =========================================================
-const SUPABASE_URL = "sb_publishable_fAg5JY0JKOQ7i2USobGWig_kPTC8AmM";
-const SUPABASE_ANON_KEY = "sb_secret_NGG3ZDr5XTYMUWDxeHSK1A_ti0qb_i0";
+const SUPABASE_URL = "https://dggidzqiwzynldamgaxc.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_fAg5JY0JKOQ7i2USobGWig_kPTC8AmM";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
