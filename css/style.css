@@ -597,3 +597,42 @@ button.btn-add-ing {
   from { opacity: 0; transform: translate(-50%, -40%); }
   to { opacity: 1; transform: translate(-50%, -50%); }
 }
+
+/* --- BARRA A 3 PULSANTI & VALUTAZIONE INTERATTIVA --- */
+nav button {
+  width: 31%;
+}
+
+.rating-picker-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  background: rgba(144, 194, 231, 0.35);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--c-dark-teal);
+  width: fit-content;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 1.45rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: transform 0.1s ease;
+}
+
+.star-btn:active {
+  transform: scale(1.25);
+}
+
+.btn-save-recipe {
+  background: #fde047;
+}
+
+.btn-unsave-recipe {
+  background: #fca5a5;
+}

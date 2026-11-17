@@ -1,5 +1,5 @@
 // =========================================================
-// LOGICA PRINCIPALE: RICETTE, DISPENSA, MODALE E TIMER
+// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE E TIMER
 // =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
@@ -56,6 +56,7 @@ async function loadUserProfileAndData() {
 }
 
 async function loadRecipesFromCloud() {
+  // 1. Carica tutte le ricette accessibili (mie, amici, pubbliche)
   const { data, error } = await supabaseClient
     .from("recipes")
     .select("*, profiles(username, email)")
@@ -66,23 +67,110 @@ async function loadRecipesFromCloud() {
     return showToast("Errore caricamento ricette");
   }
 
-  recipes = (data || []).map(r => ({
-    id: r.id,
-    userId: r.user_id,
-    authorName: r.profiles?.username || r.profiles?.email?.split("@")[0] || "Utente",
-    title: r.title,
-    macro: r.macro,
-    subcat: r.subcat,
-    servings: r.servings || 1,
-    timerMinutes: r.timer_minutes,
-    rating: r.rating || 5,
-    procedure: r.procedure,
-    photo: r.photo,
-    ingredients: r.ingredients || [],
-    visibility: r.visibility || "friends"
-  }));
+  // 2. Carica le ricette salvate dall'utente con le rispettive valutazioni personali
+  const { data: savedData } = await supabaseClient
+    .from("saved_recipes")
+    .select("recipe_id, rating")
+    .eq("user_id", currentUser.id);
+
+  savedRecipesMap = {};
+  (savedData || []).forEach(item => {
+    savedRecipesMap[item.recipe_id] = item.rating;
+  });
+
+  recipes = (data || []).map(r => {
+    const isMine = r.user_id === currentUser.id;
+    const isSaved = Object.prototype.hasOwnProperty.call(savedRecipesMap, r.id);
+    const effectiveRating = isSaved ? savedRecipesMap[r.id] : (r.rating || 5);
+
+    return {
+      id: r.id,
+      userId: r.user_id,
+      isMine,
+      isSaved,
+      authorName: r.profiles?.username || r.profiles?.email?.split("@")[0] || "Utente",
+      title: r.title,
+      macro: r.macro,
+      subcat: r.subcat,
+      servings: r.servings || 1,
+      timerMinutes: r.timer_minutes,
+      originalRating: r.rating || 5,
+      rating: effectiveRating,
+      procedure: r.procedure,
+      photo: r.photo,
+      ingredients: r.ingredients || [],
+      visibility: r.visibility || "friends"
+    };
+  });
 
   renderRecipes();
+  renderExploreRecipes();
+}
+
+/* --- SALVATAGGIO E VALUTAZIONE RICETTE --- */
+async function toggleSaveRecipe(recipeId) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r || r.isMine) return;
+
+  if (r.isSaved) {
+    const { error } = await supabaseClient
+      .from("saved_recipes")
+      .delete()
+      .eq("user_id", currentUser.id)
+      .eq("recipe_id", recipeId);
+
+    if (error) return showToast("Errore rimozione");
+    showToast("Rimossa dal tuo ricettario");
+  } else {
+    const { error } = await supabaseClient
+      .from("saved_recipes")
+      .insert({
+        user_id: currentUser.id,
+        recipe_id: recipeId,
+        rating: r.originalRating || 5
+      });
+
+    if (error) return showToast("Errore salvataggio");
+    showToast("Salvata nel tuo Ricettario!");
+  }
+
+  await loadRecipesFromCloud();
+  if (currentOpenRecipe && currentOpenRecipe.id === recipeId) {
+    currentOpenRecipe = recipes.find(item => item.id === recipeId);
+    renderModalContent();
+  }
+}
+
+async function updateRecipeRating(recipeId, newRating) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r) return;
+
+  if (r.isMine) {
+    const { error } = await supabaseClient
+      .from("recipes")
+      .update({ rating: newRating })
+      .eq("id", recipeId);
+
+    if (error) return showToast("Errore aggiornamento voto");
+  } else if (r.isSaved) {
+    const { error } = await supabaseClient
+      .from("saved_recipes")
+      .update({ rating: newRating })
+      .eq("user_id", currentUser.id)
+      .eq("recipe_id", recipeId);
+
+    if (error) return showToast("Errore aggiornamento voto");
+  } else {
+    return;
+  }
+
+  showToast(`Valutazione aggiornata: ${newRating} ★`);
+  await loadRecipesFromCloud();
+
+  if (currentOpenRecipe && currentOpenRecipe.id === recipeId) {
+    currentOpenRecipe = recipes.find(item => item.id === recipeId);
+    renderModalContent();
+  }
 }
 
 /* --- NAVIGAZIONE --- */
@@ -95,6 +183,7 @@ function switchTab(tabId, btn) {
   if (btn) btn.classList.add('active');
 
   if (tabId === 'recipes') renderRecipes();
+  if (tabId === 'explore') renderExploreRecipes();
   if (tabId !== 'add' && editingRecipeId !== null) resetAddForm();
 
   window.scrollTo(0, 0);
@@ -140,10 +229,10 @@ function updateSubcatOptions() {
   });
 }
 
-function updateFilterSubcatOptions() {
-  const macroEl = document.getElementById("filter-macro");
-  const subContainer = document.getElementById("filter-subcat-container");
-  const subSelect = document.getElementById("filter-subcat");
+function updateFilterSubcatOptions(prefix = "filter") {
+  const macroEl = document.getElementById(`${prefix}-macro`);
+  const subContainer = document.getElementById(`${prefix}-subcat-container`);
+  const subSelect = document.getElementById(`${prefix}-subcat`);
   if (!macroEl || !subContainer || !subSelect) return;
 
   const macro = macroEl.value;
@@ -382,7 +471,7 @@ async function saveNewRecipe() {
 
 function editRecipe(recipeId) {
   const r = recipes.find(item => item.id === recipeId);
-  if (!r || r.userId !== currentUser.id) return;
+  if (!r || !r.isMine) return;
 
   closeRecipeModal();
   editingRecipeId = r.id;
@@ -414,7 +503,7 @@ function editRecipe(recipeId) {
 
 async function deleteRecipe(recipeId) {
   const r = recipes.find(item => item.id === recipeId);
-  if (!r || r.userId !== currentUser.id) return;
+  if (!r || !r.isMine) return;
 
   if (confirm(`Vuoi eliminare "${r.title}"?`)) {
     await supabaseClient.from("recipes").delete().eq("id", recipeId);
@@ -473,7 +562,49 @@ function isRecipeDoable(recipe) {
   });
 }
 
-/* --- LISTA RICETTE --- */
+/* --- RENDER SCHEDE (RICETTARIO PERSONALE + ESPLORA) --- */
+function createRecipeCardElement(r, showSavedBadge = false) {
+  const doable = isRecipeDoable(r);
+  const card = document.createElement("div");
+  card.className = "recipe-card";
+
+  card.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openRecipeModal(r.id);
+  });
+
+  const imgHtml = r.photo
+    ? `<img src="${r.photo}" class="recipe-img">`
+    : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
+
+  const displayRating = r.rating || 5;
+
+  card.innerHTML = `
+    <div class="recipe-card-img-container">${imgHtml}</div>
+    <div class="recipe-body">
+      <div>
+        <h4 class="recipe-title">${r.title}</h4>
+        <div>
+          <div class="stars">${"★".repeat(displayRating)}${"☆".repeat(5 - displayRating)}</div>
+          <div class="recipe-tags">
+            ${!r.isMine ? `<span class="badge badge-author">👤 ${r.authorName}</span>` : ''}
+            ${showSavedBadge && r.isSaved ? `<span class="badge" style="background:#86efac;">✓ Salvata</span>` : ''}
+            <span class="badge badge-macro">${r.macro}</span>
+            ${r.subcat ? `<span class="badge badge-sub">${r.subcat}</span>` : ''}
+            ${doable ? `<span class="badge badge-doable">Fattibile</span>` : ''}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
+        ${(r.ingredients || []).length} ingredienti • ${r.servings || 1} porzioni
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+// 1. Pagina Principale: IL MIO RICETTARIO (Create da me + Salvate da Esplora)
 function renderRecipes() {
   const list = document.getElementById("recipe-list");
   if (!list) return;
@@ -481,14 +612,16 @@ function renderRecipes() {
 
   const keyword = (document.getElementById("search-keyword")?.value || "").toLowerCase().trim();
   const onlyDoable = document.getElementById("toggle-doable")?.checked || false;
-  const authorFilter = document.getElementById("filter-author")?.value || "all";
+  const originFilter = document.getElementById("filter-origin")?.value || "all";
   const macroFilter = document.getElementById("filter-macro")?.value || "tutti";
   const subcatFilter = document.getElementById("filter-subcat")?.value || "tutti";
 
   const filtered = recipes.filter(r => {
-    const isMine = r.userId === currentUser.id;
-    if (authorFilter === "mine" && !isMine) return false;
-    if (authorFilter === "friends" && isMine) return false;
+    // Nel ricettario principale compaiono solo le ricette create da me o salvate da Esplora
+    if (!r.isMine && !r.isSaved) return false;
+
+    if (originFilter === "mine" && !r.isMine) return false;
+    if (originFilter === "saved" && !r.isSaved) return false;
 
     if (keyword) {
       const matchTitle = r.title.toLowerCase().includes(keyword);
@@ -510,48 +643,57 @@ function renderRecipes() {
   });
 
   if (filtered.length === 0) {
-    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata</p>`;
+    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta salvata. Scopri nuove idee nella scheda Esplora!</p>`;
     return;
   }
 
-  filtered.forEach(r => {
-    const doable = isRecipeDoable(r);
-    const isMine = r.userId === currentUser.id;
-    const card = document.createElement("div");
-    card.className = "recipe-card";
+  filtered.forEach(r => list.appendChild(createRecipeCardElement(r, false)));
+}
 
-    card.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      openRecipeModal(r.id);
-    });
+// 2. Pagina Centrale: ESPLORA (Ricette di Amici & Community)
+function renderExploreRecipes() {
+  const list = document.getElementById("explore-list");
+  if (!list) return;
+  list.innerHTML = "";
 
-    const imgHtml = r.photo
-      ? `<img src="${r.photo}" class="recipe-img">`
-      : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
+  const keyword = (document.getElementById("explore-keyword")?.value || "").toLowerCase().trim();
+  const onlyDoable = document.getElementById("explore-toggle-doable")?.checked || false;
+  const scopeFilter = document.getElementById("explore-scope")?.value || "all";
+  const macroFilter = document.getElementById("explore-macro")?.value || "tutti";
+  const subcatFilter = document.getElementById("explore-subcat")?.value || "tutti";
 
-    card.innerHTML = `
-      <div class="recipe-card-img-container">${imgHtml}</div>
-      <div class="recipe-body">
-        <div>
-          <h4 class="recipe-title">${r.title}</h4>
-          <div>
-            <div class="stars">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))}</div>
-            <div class="recipe-tags">
-              ${!isMine ? `<span class="badge badge-author">👤 ${r.authorName}</span>` : ''}
-              <span class="badge badge-macro">${r.macro}</span>
-              ${r.subcat ? `<span class="badge badge-sub">${r.subcat}</span>` : ''}
-              ${doable ? `<span class="badge badge-doable">Fattibile</span>` : ''}
-            </div>
-          </div>
-        </div>
-        <div style="font-size:0.8rem; margin-top:6px; font-weight:600;">
-          ${(r.ingredients || []).length} ingredienti • ${r.servings || 1} porzioni
-        </div>
-      </div>
-    `;
-    list.appendChild(card);
+  const filtered = recipes.filter(r => {
+    // Esclude le proprie ricette
+    if (r.isMine) return false;
+
+    if (scopeFilter === "friends" && r.visibility !== "friends") return false;
+    if (scopeFilter === "public" && r.visibility !== "public") return false;
+
+    if (keyword) {
+      const matchTitle = r.title.toLowerCase().includes(keyword);
+      const matchAuthor = r.authorName.toLowerCase().includes(keyword);
+      const matchIngredient = (r.ingredients || []).some(i => {
+        const info = INGREDIENTS_DB.find(db => db.id === i.id);
+        return info && info.name.toLowerCase().includes(keyword);
+      });
+      if (!matchTitle && !matchIngredient && !matchAuthor) return false;
+    }
+
+    if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
+    if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
+      if (r.subcat !== subcatFilter) return false;
+    }
+    if (onlyDoable && !isRecipeDoable(r)) return false;
+
+    return true;
   });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata nella community.</p>`;
+    return;
+  }
+
+  filtered.forEach(r => list.appendChild(createRecipeCardElement(r, true)));
 }
 
 /* --- MODALE E TIMER --- */
@@ -586,7 +728,6 @@ function renderModalContent() {
   const r = currentOpenRecipe;
   if (!r) return;
 
-  const isMine = r.userId === currentUser.id;
   const doable = isRecipeDoable(r);
   const body = document.getElementById("modal-body");
   if (!body) return;
@@ -606,6 +747,26 @@ function renderModalContent() {
     ? `<img src="${r.photo}" class="modal-img">`
     : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>`;
 
+  // Se la ricetta è mia o salvata, le stelle sono interattive per cambiare la propria valutazione
+  const canRate = r.isMine || r.isSaved;
+  const currentRating = r.rating || 5;
+  let ratingHtml = "";
+
+  if (canRate) {
+    let starsButtons = "";
+    for (let s = 1; s <= 5; s++) {
+      starsButtons += `<button type="button" class="star-btn" onclick="updateRecipeRating('${r.id}', ${s})">${s <= currentRating ? '★' : '☆'}</button>`;
+    }
+    ratingHtml = `
+      <div class="rating-picker-box">
+        <span style="font-size: 0.95rem;">Il tuo voto:</span>
+        <div>${starsButtons}</div>
+      </div>
+    `;
+  } else {
+    ratingHtml = `<div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(currentRating)}${"☆".repeat(5 - currentRating)}</div>`;
+  }
+
   const timerHtml = r.timerMinutes ? `
     <div class="kitchen-timer-box">
       <div style="font-size: 1rem; color: var(--c-cream);">⏱️ Timer di Cottura</div>
@@ -618,23 +779,36 @@ function renderModalContent() {
     </div>
   ` : '';
 
-  const ownerActionsHtml = isMine ? `
-    <div class="modal-actions">
-      <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
-      <button type="button" class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
-    </div>
-  ` : '';
+  // Pulsanti azione: Modifica/Elimina se mia; Salva/Rimuovi dai salvati se di altri utenti
+  let actionsHtml = "";
+  if (r.isMine) {
+    actionsHtml = `
+      <div class="modal-actions">
+        <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
+        <button type="button" class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
+      </div>
+    `;
+  } else {
+    actionsHtml = `
+      <div class="modal-actions">
+        <button type="button" class="btn-action ${r.isSaved ? 'btn-unsave-recipe' : 'btn-save-recipe'}" onclick="toggleSaveRecipe('${r.id}')">
+          ${r.isSaved ? '🗑️ Rimuovi dai salvati' : '⭐ Salva nel mio Ricettario'}
+        </button>
+      </div>
+    `;
+  }
 
   body.innerHTML = `
     ${imageHtml}
     <h3 class="modal-title">${r.title}</h3>
     <div style="margin-bottom: 10px;">
-      ${!isMine ? `<span class="badge badge-author">DI ${r.authorName.toUpperCase()}</span>` : ''}
+      ${!r.isMine ? `<span class="badge badge-author">DI ${r.authorName.toUpperCase()}</span>` : ''}
       <span class="badge badge-macro">${(r.macro || '').toUpperCase()}</span>
       ${r.subcat ? `<span class="badge badge-sub">${r.subcat.toUpperCase()}</span>` : ''}
       ${doable ? `<span class="badge badge-doable">FATTIBILE ORA</span>` : ''}
     </div>
-    <div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))}</div>
+
+    ${ratingHtml}
 
     <div class="modal-section-title">
       <span>Ingredienti</span>
@@ -650,7 +824,7 @@ function renderModalContent() {
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
 
     ${timerHtml}
-    ${ownerActionsHtml}
+    ${actionsHtml}
   `;
 }
 

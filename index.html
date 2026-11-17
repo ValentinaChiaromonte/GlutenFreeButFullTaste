@@ -19,7 +19,7 @@
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="css/style.css?v=1">
+  <link rel="stylesheet" href="css/style.css?v=2">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <!-- MODALE NUOVA PASSWORD (Si apre cliccando sul link nell'email) -->
+  <!-- MODALE NUOVA PASSWORD -->
   <div id="reset-password-modal" class="modal-overlay">
     <div class="modal-content">
       <h3 class="modal-title" style="text-align: center; margin-bottom: 14px;">Nuova Password</h3>
@@ -77,12 +77,13 @@
   <!-- CONTENUTO PRINCIPALE APP -->
   <div id="app-main" style="display: none;">
     <div class="container">
-      <!-- VISTA 1: RICERCA RICETTE (PRINCIPALE) -->
+      
+      <!-- VISTA 1: LE MIE RICETTE (Create + Salvate da Esplora) -->
       <section id="view-recipes" class="tab-content active">
-        <h3 class="page-title">Lasciati ispirare...</h3>
+        <h3 class="page-title">Il mio Ricettario</h3>
         <div class="controls-container">
           <div class="form-group" style="margin-bottom: 10px;">
-            <input type="text" id="search-keyword" placeholder="Cerca per nome o ingrediente...">
+            <input type="text" id="search-keyword" placeholder="Cerca nelle tue ricette...">
           </div>
 
           <div class="filter-toggle">
@@ -94,15 +95,15 @@
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-author">
-              <option value="all">Tutte le ricette (Mie + Amici)</option>
-              <option value="mine">Solo le mie ricette</option>
-              <option value="friends">Solo ricette degli amici</option>
+            <select id="filter-origin">
+              <option value="all">Tutte (Create da me + Salvate)</option>
+              <option value="mine">Solo create da me</option>
+              <option value="saved">Solo salvate dagli amici/community</option>
             </select>
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-macro" onchange="updateFilterSubcatOptions()">
+            <select id="filter-macro" onchange="updateFilterSubcatOptions('filter')">
               <option value="tutti">Tutto (Dolci & Salati)</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
@@ -121,7 +122,51 @@
         <div id="recipe-list"></div>
       </section>
 
-      <!-- VISTA 2: DISPENSA -->
+      <!-- VISTA 2 (CENTRALE): ESPLORA (Ricette di Amici & Community) -->
+      <section id="view-explore" class="tab-content">
+        <h3 class="page-title">Esplora Community</h3>
+        <div class="controls-container">
+          <div class="form-group" style="margin-bottom: 10px;">
+            <input type="text" id="explore-keyword" placeholder="Cerca ricetta, ingrediente o autore...">
+          </div>
+
+          <div class="filter-toggle">
+            <span>In base alle mie scorte</span>
+            <label class="switch">
+              <input type="checkbox" id="explore-toggle-doable">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <select id="explore-scope">
+              <option value="all">Tutte (Amici + Pubbliche)</option>
+              <option value="friends">Solo degli amici</option>
+              <option value="public">Solo pubbliche</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <select id="explore-macro" onchange="updateFilterSubcatOptions('explore')">
+              <option value="tutti">Tutto (Dolci & Salati)</option>
+              <option value="dolci">Dolci</option>
+              <option value="salati">Salati</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="explore-subcat-container" style="display: none; margin-bottom: 12px;">
+            <select id="explore-subcat">
+              <option value="tutti">Tutte le sottocategorie</option>
+            </select>
+          </div>
+
+          <button type="button" class="btn-main" onclick="renderExploreRecipes()" style="margin-top: 6px;">🧭 Esplora</button>
+        </div>
+
+        <div id="explore-list"></div>
+      </section>
+
+      <!-- VISTA 3: DISPENSA -->
       <section id="view-pantry" class="tab-content">
         <h3 class="page-title">Cosa offre la casa?</h3>
         <p class="info">La tua dispensa è sincronizzata su tutti i tuoi dispositivi. <br> Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono già dati per presenti.</p>
@@ -132,7 +177,7 @@
         </div>
       </section>
 
-      <!-- VISTA 3: FORM NUOVA / MODIFICA RICETTA -->
+      <!-- VISTA 4: FORM NUOVA / MODIFICA RICETTA -->
       <section id="view-add" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <button type="button" class="btn-add-ing" style="margin-top: 0;" onclick="cancelRecipeForm()">← Indietro</button>
@@ -210,7 +255,6 @@
 
           <button type="button" class="btn-main" id="save-recipe-btn" onclick="saveNewRecipe()">Salva Ricetta</button>
         </div>
-
       </section>
     </div>
 
@@ -222,19 +266,16 @@
           <button type="button" class="modal-close" style="position: static;" onclick="closeSideDrawer()">✕</button>
         </div>
 
-        <!-- Dati Account -->
         <div class="drawer-profile-card">
           <div style="font-size: 1.35rem; margin-bottom: 2px;" id="drawer-username">Utente</div>
           <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 12px; word-break: break-all;" id="drawer-email"></div>
           <button type="button" class="drawer-btn" onclick="changeUsername()">✏️ Cambia nome utente</button>
         </div>
 
-        <!-- Pulsante Nuova Ricetta -->
         <button type="button" class="btn-main" style="margin-top: 0; margin-bottom: 14px; background: var(--c-sky-blue);" onclick="openNewRecipeFormFromDrawer()">
           ➕ Nuova Ricetta
         </button>
 
-        <!-- Sezione Amici a comparsa -->
         <div class="drawer-accordion">
           <button type="button" class="drawer-accordion-toggle" onclick="toggleFriendsDrawerSection()">
             <span>👥 I miei Amici <span id="drawer-friends-count"></span></span>
@@ -258,7 +299,6 @@
           </div>
         </div>
 
-        <!-- Azioni finali account -->
         <div class="drawer-footer-actions">
           <button type="button" class="drawer-btn" onclick="logoutUser()">🚪 Esci</button>
           <button type="button" class="drawer-btn drawer-btn-danger" onclick="deleteUserAccount()">🗑️ Elimina account</button>
@@ -274,11 +314,15 @@
       </div>
     </div>
 
-    <!-- BARRA NAVIGAZIONE INFERIORE A 2 PAGINE -->
+    <!-- BARRA NAVIGAZIONE INFERIORE A 3 PAGINE (RICETTE • ESPLORA • DISPENSA) -->
     <nav>
       <button type="button" id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
         <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
         Ricette
+      </button>
+      <button type="button" id="nav-btn-explore" onclick="switchTab('explore', this)">
+        <svg viewBox="0 0 24 24"><path d="M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z"/></svg>
+        Esplora
       </button>
       <button type="button" id="nav-btn-pantry" onclick="switchTab('pantry', this)">
         <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
@@ -288,8 +332,8 @@
   </div>
 
   <!-- CARICAMENTO MODULARE DEI FILE JS -->
-  <script src="js/config.js?v=1"></script>
-  <script src="js/auth.js?v=3"></script>
-  <script src="js/app.js?v=2"></script>
+  <script src="js/config.js?v=2"></script>
+  <script src="js/auth.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

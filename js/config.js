@@ -51,6 +51,7 @@ let currentProfile = null;
 let customIngredients = [];
 let INGREDIENTS_DB = [...BASE_INGREDIENTS];
 let recipes = [];
+let savedRecipesMap = {};
 let pantry = {};
 let friendships = [];
 
