@@ -11,6 +11,9 @@ function toggleAuthMode() {
     ? "Hai già un account? Accedi"
     : "Non hai un account? Registrati";
 
+  const usernameGroup = document.getElementById("auth-username-group");
+  if (usernameGroup) usernameGroup.style.display = isSignUpMode ? "block" : "none";
+
   const forgotBtn = document.getElementById("forgot-password-btn");
   if (forgotBtn) forgotBtn.style.display = isSignUpMode ? "none" : "block";
 }
@@ -18,18 +21,49 @@ function toggleAuthMode() {
 async function handleAuthSubmit() {
   const email = document.getElementById("auth-email").value.trim().toLowerCase();
   const password = document.getElementById("auth-password").value;
+  const username = document.getElementById("auth-username")?.value.trim() || "";
 
   if (!email || !password) return showToast("Inserisci email e password");
   if (password.length < 6) return showToast("La password deve avere almeno 6 caratteri");
+
+  if (isSignUpMode) {
+    if (!username || username.length < 3) {
+      return showToast("Inserisci un nome utente (almeno 3 caratteri)");
+    }
+    if (username.includes("@")) {
+      return showToast("Il nome utente non può contenere @");
+    }
+  }
 
   const btn = document.getElementById("auth-submit-btn");
   btn.disabled = true;
   btn.innerText = "Attendere...";
 
   if (isSignUpMode) {
-    const { error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) showToast("Errore registrazione: " + error.message, 3000);
-    else showToast("Registrazione completata!");
+    // Controlla che il nome utente non sia già preso
+    const { data: isAvailable } = await supabaseClient.rpc("is_username_available", {
+      check_username: username
+    });
+
+    if (isAvailable === false) {
+      btn.disabled = false;
+      btn.innerText = "Registrati";
+      return showToast("Questo nome utente è già occupato, scegline un altro!", 2800);
+    }
+
+    const { error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username }
+      }
+    });
+
+    if (error) {
+      showToast("Errore registrazione: " + error.message, 3000);
+    } else {
+      showToast("Registrazione completata!");
+    }
   } else {
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) showToast("Credenziali non valide", 2500);
@@ -130,13 +164,17 @@ async function changeUsername() {
   if (!newName || !newName.trim() || newName.trim() === currentName) return;
 
   const cleanName = newName.trim();
+  if (cleanName.length < 3 || cleanName.includes("@")) {
+    return showToast("Nome utente non valido (min. 3 caratteri, senza @)");
+  }
+
   const { error } = await supabaseClient
     .from("profiles")
     .update({ username: cleanName })
     .eq("id", currentUser.id);
 
   if (error) {
-    showToast("Errore aggiornamento nome");
+    showToast("Nome utente già in uso o non valido", 2500);
   } else {
     if (currentProfile) currentProfile.username = cleanName;
     document.getElementById("drawer-username").innerText = cleanName;
@@ -171,7 +209,7 @@ async function deleteUserAccount() {
   showToast("Account eliminato definitivamente.", 2500);
 }
 
-/* --- AMICI E RICHIESTE --- */
+/* --- AMICI E RICHIESTE (TRAMITE NOME UTENTE O EMAIL) --- */
 async function loadFriendships() {
   if (!currentUser) return;
   const { data, error } = await supabaseClient
@@ -208,8 +246,7 @@ function renderFriendsUI() {
     pendingList.innerHTML = incomingPending.map(req => `
       <div class="friend-row">
         <div style="min-width: 0;">
-          <strong>${req.requester.username}</strong><br>
-          <span style="font-size:0.8rem; word-break:break-all;">${req.requester.email}</span>
+          <strong>👤 ${req.requester.username}</strong>
         </div>
         <div style="display:flex; gap:4px; flex-shrink: 0;">
           <button type="button" class="btn-timer" style="background:#86efac; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', true)">✓</button>
@@ -233,8 +270,7 @@ function renderFriendsUI() {
       return `
         <div class="friend-row">
           <div style="min-width: 0;">
-            <strong>${friendProfile.username}</strong><br>
-            <span style="font-size:0.8rem; word-break:break-all;">${friendProfile.email}</span>
+            <strong>👤 ${friendProfile.username}</strong>
           </div>
           <button type="button" class="btn-timer" style="flex:0; background:#fca5a5; padding:6px 8px;" onclick="removeFriend('${f.id}')">✕</button>
         </div>
@@ -245,19 +281,34 @@ function renderFriendsUI() {
 
 async function sendFriendRequest() {
   const input = document.getElementById("friend-email-input");
-  const targetEmail = input.value.trim().toLowerCase();
+  const query = input.value.trim();
 
-  if (!targetEmail) return showToast("Inserisci un'email");
-  if (targetEmail === currentUser.email.toLowerCase()) return showToast("Non puoi invitare te stesso!");
+  if (!query) return showToast("Inserisci un nome utente o un'email");
 
-  const { data: targetProfile, error: findErr } = await supabaseClient
-    .from("profiles")
-    .select("id, email")
-    .eq("email", targetEmail)
-    .single();
+  // Cerca per email (se contiene @) oppure per nome utente (case-insensitive)
+  let targetProfile = null;
+  if (query.includes("@")) {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id, username, email")
+      .eq("email", query.toLowerCase())
+      .maybeSingle();
+    targetProfile = data;
+  } else {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("id, username, email")
+      .ilike("username", query)
+      .maybeSingle();
+    targetProfile = data;
+  }
 
-  if (findErr || !targetProfile) {
-    return showToast("Nessun utente trovato con questa email", 2500);
+  if (!targetProfile) {
+    return showToast("Nessun utente trovato con questo nome", 2500);
+  }
+
+  if (targetProfile.id === currentUser.id) {
+    return showToast("Non puoi invitare te stesso!");
   }
 
   const alreadyExists = friendships.some(
@@ -277,7 +328,7 @@ async function sendFriendRequest() {
     showToast("Errore invio richiesta");
   } else {
     input.value = "";
-    showToast("Richiesta inviata!");
+    showToast(`Richiesta inviata a ${targetProfile.username}!`);
     await loadFriendships();
   }
 }
