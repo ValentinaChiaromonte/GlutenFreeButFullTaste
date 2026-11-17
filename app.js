@@ -1,8 +1,8 @@
 // =========================================================
 // INSERISCI QUI I TUOI DATI SUPABASE
 // =========================================================
-const SUPABASE_URL = "INSERISCI_QUI_IL_TUO_PROJECT_URL";
-const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_ANON_KEY";
+const SUPABASE_URL = "sb_publishable_fAg5JY0JKOQ7i2USobGWig_kPTC8AmM";
+const SUPABASE_ANON_KEY = "sb_secret_NGG3ZDr5XTYMUWDxeHSK1A_ti0qb_i0";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
