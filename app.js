@@ -1,3 +1,17 @@
+// =========================================================
+// INSERISCI QUI I TUOI DATI SUPABASE
+// =========================================================
+const SUPABASE_URL = "INSERISCI_QUI_IL_TUO_PROJECT_URL";
+const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_ANON_KEY";
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storage: window.localStorage
+  }
+});
+
 const BASE_INGREDIENTS = [
   { id: "farina_riso", name: "Farina di riso", unit: "g", staple: false },
   { id: "maizena", name: "Amido di mais", unit: "g", staple: false },
@@ -26,17 +40,13 @@ const BASE_INGREDIENTS = [
   { id: "olio_semi", name: "Olio di semi", unit: "ml", staple: true }
 ];
 
-// Caricamento ingredienti personalizzati da memoria
-let customIngredients = JSON.parse(localStorage.getItem("gf_custom_ingredients")) || [];
-let INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
-
-const SUBCATS = {
-  dolci: ["Biscotti", "Merenda", "Torte", "Feste"],
-  salati: ["Primi", "Secondi", "Cena", "Contorni", "Stuzzichini"]
-};
-
-let recipes = JSON.parse(localStorage.getItem("gf_recipes")) || [];
-let pantry = JSON.parse(localStorage.getItem("gf_pantry")) || {};
+let currentUser = null;
+let isSignUpMode = false;
+let customIngredients = [];
+let INGREDIENTS_DB = [...BASE_INGREDIENTS];
+let recipes = [];
+let pantry = {};
+let friendships = [];
 let editingRecipeId = null;
 
 let wakeLockSentinel = null;
@@ -46,8 +56,12 @@ let currentOpenRecipe = null;
 let currentModalServings = 4;
 let audioCtx = null;
 
-// Notifica a scomparsa automatica dopo 1 secondo (sostituisce alert)
-function showToast(message, duration = 1000) {
+const SUBCATS = {
+  dolci: ["Biscotti", "Merenda", "Torte", "Feste"],
+  salati: ["Primi", "Secondi", "Cena", "Contorni", "Stuzzichini"]
+};
+
+function showToast(message, duration = 1800) {
   const existingToast = document.querySelector(".toast-notification");
   if (existingToast) existingToast.remove();
 
@@ -56,15 +70,14 @@ function showToast(message, duration = 1000) {
   toast.innerText = message;
   document.body.appendChild(toast);
 
-  setTimeout(() => {
-    toast.remove();
-  }, duration);
+  setTimeout(() => toast.remove(), duration);
 }
 
-window.onload = () => {
+/* =========================================================
+   GESTIONE SESSIONE E AUTENTICAZIONE
+   ========================================================= */
+window.onload = async () => {
   updateSubcatOptions();
-  buildPantryUI();
-  renderRecipes();
 
   const modalEl = document.getElementById("recipe-modal");
   if (modalEl) {
@@ -72,20 +85,297 @@ window.onload = () => {
       if (e.target.id === "recipe-modal") closeRecipeModal();
     });
   }
+
+  // Controlla se esiste già una sessione salvata su PC / iPhone / iPad
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  handleSessionChange(session);
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    handleSessionChange(session);
+  });
 };
 
-function switchTab(tabId, btn) {
-  const tabs = document.querySelectorAll('.tab-content');
-  tabs.forEach(el => el.classList.remove('active'));
+async function handleSessionChange(session) {
+  const authScreen = document.getElementById("auth-screen");
+  const appMain = document.getElementById("app-main");
+  const headerBar = document.getElementById("user-header-bar");
 
-  const navButtons = document.querySelectorAll('nav button');
-  navButtons.forEach(el => el.classList.remove('active'));
+  if (session && session.user) {
+    currentUser = session.user;
+    authScreen.style.display = "none";
+    appMain.style.display = "block";
+    headerBar.style.display = "block";
+    document.getElementById("current-user-email").innerText = currentUser.email.split("@")[0];
+
+    await loadUserProfileAndData();
+  } else {
+    currentUser = null;
+    authScreen.style.display = "block";
+    appMain.style.display = "none";
+    headerBar.style.display = "none";
+  }
+}
+
+function toggleAuthMode() {
+  isSignUpMode = !isSignUpMode;
+  document.getElementById("auth-title").innerText = isSignUpMode ? "Crea un nuovo account" : "Accedi alla Community";
+  document.getElementById("auth-submit-btn").innerText = isSignUpMode ? "Registrati" : "Accedi";
+  document.getElementById("auth-toggle-btn").innerText = isSignUpMode
+    ? "Hai già un account? Accedi"
+    : "Non hai un account? Registrati";
+}
+
+async function handleAuthSubmit() {
+  const email = document.getElementById("auth-email").value.trim().toLowerCase();
+  const password = document.getElementById("auth-password").value;
+
+  if (!email || !password) return showToast("Inserisci email e password");
+  if (password.length < 6) return showToast("La password deve avere almeno 6 caratteri");
+
+  const btn = document.getElementById("auth-submit-btn");
+  btn.disabled = true;
+  btn.innerText = "Attendere...";
+
+  if (isSignUpMode) {
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) {
+      showToast("Errore registrazione: " + error.message, 3000);
+    } else {
+      showToast("Registrazione completata!");
+    }
+  } else {
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast("Credenziali non valide", 2500);
+    } else {
+      showToast("Bentornato!");
+    }
+  }
+
+  btn.disabled = false;
+  btn.innerText = isSignUpMode ? "Registrati" : "Accedi";
+}
+
+async function logoutUser() {
+  await supabaseClient.auth.signOut();
+  showToast("Disconnesso");
+}
+
+/* =========================================================
+   CARICAMENTO DATI DAL DATABASE CLOUD
+   ========================================================= */
+async function loadUserProfileAndData() {
+  if (!currentUser) return;
+
+  // 1. Profilo, dispensa e ingredienti personalizzati
+  const { data: profile } = await supabaseClient
+    .from("profiles")
+    .select("*")
+    .eq("id", currentUser.id)
+    .single();
+
+  if (profile) {
+    pantry = profile.pantry || {};
+    customIngredients = profile.custom_ingredients || [];
+    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
+  }
+
+  buildPantryUI();
+  await loadFriendships();
+  await loadRecipesFromCloud();
+}
+
+async function loadRecipesFromCloud() {
+  // Grazie alle policy RLS, questa query restituisce automaticamente
+  // le tue ricette + quelle condivise dagli amici accettati + quelle pubbliche
+  const { data, error } = await supabaseClient
+    .from("recipes")
+    .select("*, profiles(username, email)")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return showToast("Errore caricamento ricette");
+  }
+
+  recipes = (data || []).map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    authorName: r.profiles?.username || r.profiles?.email?.split("@")[0] || "Utente",
+    title: r.title,
+    macro: r.macro,
+    subcat: r.subcat,
+    servings: r.servings || 1,
+    timerMinutes: r.timer_minutes,
+    rating: r.rating || 5,
+    procedure: r.procedure,
+    photo: r.photo,
+    ingredients: r.ingredients || [],
+    visibility: r.visibility || "friends"
+  }));
+
+  renderRecipes();
+}
+
+/* =========================================================
+   SISTEMA AMICI E RICHIESTE DI CONDIVISIONE
+   ========================================================= */
+async function loadFriendships() {
+  const { data, error } = await supabaseClient
+    .from("friendships")
+    .select(`
+      id,
+      status,
+      requester_id,
+      addressee_id,
+      requester:profiles!friendships_requester_id_fkey(id, email, username),
+      addressee:profiles!friendships_addressee_id_fkey(id, email, username)
+    `);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  friendships = data || [];
+  renderFriendsUI();
+}
+
+function renderFriendsUI() {
+  const pendingBox = document.getElementById("pending-requests-box");
+  const pendingList = document.getElementById("pending-requests-list");
+  const friendsList = document.getElementById("friends-list");
+  const badge = document.getElementById("friends-badge");
+
+  // Richieste ricevute in attesa di risposta
+  const incomingPending = friendships.filter(
+    f => f.status === "pending" && f.addressee_id === currentUser.id
+  );
+
+  if (incomingPending.length > 0) {
+    pendingBox.style.display = "block";
+    badge.style.display = "flex";
+    badge.innerText = incomingPending.length;
+
+    pendingList.innerHTML = incomingPending.map(req => `
+      <div class="friend-row">
+        <div>
+          <strong>${req.requester.username}</strong><br>
+          <span style="font-size:0.85rem;">${req.requester.email}</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-timer" style="background:#86efac;" onclick="respondFriendRequest('${req.id}', true)">Accetta</button>
+          <button type="button" class="btn-timer" style="background:#fca5a5;" onclick="respondFriendRequest('${req.id}', false)">Rifiuta</button>
+        </div>
+      </div>
+    `).join("");
+  } else {
+    pendingBox.style.display = "none";
+    badge.style.display = "none";
+  }
+
+  // Amici confermati
+  const accepted = friendships.filter(f => f.status === "accepted");
+  if (accepted.length === 0) {
+    friendsList.innerHTML = `<p style="margin:0;">Nessun amico ancora. Invita qualcuno tramite email!</p>`;
+  } else {
+    friendsList.innerHTML = accepted.map(f => {
+      const friendProfile = f.requester_id === currentUser.id ? f.addressee : f.requester;
+      return `
+        <div class="friend-row">
+          <div>
+            <strong>${friendProfile.username}</strong><br>
+            <span style="font-size:0.85rem;">${friendProfile.email}</span>
+          </div>
+          <button type="button" class="btn-timer" style="flex:0; background:#fca5a5;" onclick="removeFriend('${f.id}')">Rimuovi</button>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+async function sendFriendRequest() {
+  const input = document.getElementById("friend-email-input");
+  const targetEmail = input.value.trim().toLowerCase();
+
+  if (!targetEmail) return showToast("Inserisci un'email");
+  if (targetEmail === currentUser.email.toLowerCase()) return showToast("Non puoi invitare te stesso!");
+
+  // Cerca l'utente nel database
+  const { data: targetProfile, error: findErr } = await supabaseClient
+    .from("profiles")
+    .select("id, email")
+    .eq("email", targetEmail)
+    .single();
+
+  if (findErr || !targetProfile) {
+    return showToast("Nessun utente registrato con questa email", 2500);
+  }
+
+  // Controlla se esiste già una relazione
+  const alreadyExists = friendships.some(
+    f => (f.requester_id === targetProfile.id || f.addressee_id === targetProfile.id)
+  );
+  if (alreadyExists) {
+    return showToast("Richiesta già inviata o utente già tra gli amici");
+  }
+
+  const { error } = await supabaseClient
+    .from("friendships")
+    .insert({
+      requester_id: currentUser.id,
+      addressee_id: targetProfile.id,
+      status: "pending"
+    });
+
+  if (error) {
+    showToast("Errore invio richiesta");
+  } else {
+    input.value = "";
+    showToast("Richiesta di amicizia inviata!");
+    await loadFriendships();
+  }
+}
+
+async function respondFriendRequest(friendshipId, accept) {
+  if (accept) {
+    await supabaseClient
+      .from("friendships")
+      .update({ status: "accepted" })
+      .eq("id", friendshipId);
+    showToast("Amicizia accettata! Ora vedete le rispettive ricette.");
+  } else {
+    await supabaseClient
+      .from("friendships")
+      .delete()
+      .eq("id", friendshipId);
+    showToast("Richiesta rifiutata");
+  }
+  await loadFriendships();
+  await loadRecipesFromCloud();
+}
+
+async function removeFriend(friendshipId) {
+  if (!confirm("Vuoi rimuovere questo amico dalla tua lista?")) return;
+  await supabaseClient.from("friendships").delete().eq("id", friendshipId);
+  showToast("Amico rimosso");
+  await loadFriendships();
+  await loadRecipesFromCloud();
+}
+
+/* =========================================================
+   NAVIGAZIONE E GESTIONE RICETTE
+   ========================================================= */
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
 
   const targetView = document.getElementById('view-' + tabId);
   if (targetView) targetView.classList.add('active');
   if (btn) btn.classList.add('active');
 
   if (tabId === 'recipes') renderRecipes();
+  if (tabId === 'friends') loadFriendships();
   if (tabId !== 'add' && editingRecipeId !== null) resetAddForm();
 
   window.scrollTo(0, 0);
@@ -110,7 +400,6 @@ function updateSubcatOptions() {
 
   const macro = macroEl.value;
   subcatSelect.innerHTML = "";
-
   (SUBCATS[macro] || []).forEach(s => {
     const opt = document.createElement("option");
     opt.value = s.toLowerCase();
@@ -144,12 +433,12 @@ function updateFilterSubcatOptions() {
 function getIngredientOptionsHtml(selectedId = null) {
   let html = `<option value="">-- Seleziona --</option>`;
   html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
-  
+
   if (customIngredients.length > 0) {
     html += `<option value="__MANAGE__" style="font-weight: bold; background-color: #fca5a5;">🗑️ Elimina un ingrediente creato...</option>`;
   }
 
-  const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) => 
+  const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) =>
     a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
   );
 
@@ -157,7 +446,7 @@ function getIngredientOptionsHtml(selectedId = null) {
   return html;
 }
 
-function handleIngredientSelectChange(selectEl) {
+async function handleIngredientSelectChange(selectEl) {
   if (selectEl.value === "__NEW__") {
     const name = prompt("Nome del nuovo ingrediente:");
     if (!name || !name.trim()) {
@@ -174,7 +463,11 @@ function handleIngredientSelectChange(selectEl) {
 
     customIngredients.push(newIng);
     INGREDIENTS_DB.push(newIng);
-    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
+
+    await supabaseClient
+      .from("profiles")
+      .update({ custom_ingredients: customIngredients })
+      .eq("id", currentUser.id);
 
     document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
       const curVal = sel.value;
@@ -183,19 +476,17 @@ function handleIngredientSelectChange(selectEl) {
 
     selectEl.value = id;
     buildPantryUI();
-    showToast("Ingrediente aggiunto!");
+    showToast("Ingrediente salvato nel cloud!");
   } else if (selectEl.value === "__MANAGE__") {
-    deleteCustomIngredientPrompt();
+    await deleteCustomIngredientPrompt();
     selectEl.value = "";
   }
 }
 
-function deleteCustomIngredientPrompt() {
-  if (customIngredients.length === 0) {
-    return showToast("Nessun ingrediente personalizzato da eliminare.");
-  }
+async function deleteCustomIngredientPrompt() {
+  if (customIngredients.length === 0) return showToast("Nessun ingrediente personalizzato.");
 
-  let promptText = "Digita il NUMERO dell'ingrediente da eliminare definitivamente:\n\n";
+  let promptText = "Digita il NUMERO dell'ingrediente da eliminare:\n\n";
   customIngredients.forEach((ing, index) => {
     promptText += `${index + 1}) ${ing.name} (${ing.unit})\n`;
   });
@@ -209,15 +500,15 @@ function deleteCustomIngredientPrompt() {
   }
 
   const removed = customIngredients[selectedIndex];
-  if (confirm(`Confermi di voler eliminare "${removed.name}" da tutti i menu e dalla dispensa?`)) {
+  if (confirm(`Eliminare "${removed.name}"?`)) {
     customIngredients.splice(selectedIndex, 1);
     INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
-    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
+    delete pantry[removed.id];
 
-    if (pantry[removed.id]) {
-      delete pantry[removed.id];
-      localStorage.setItem("gf_pantry", JSON.stringify(pantry));
-    }
+    await supabaseClient
+      .from("profiles")
+      .update({ custom_ingredients: customIngredients, pantry })
+      .eq("id", currentUser.id);
 
     document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
       const curVal = sel.value === removed.id ? "" : sel.value;
@@ -225,7 +516,7 @@ function deleteCustomIngredientPrompt() {
     });
 
     buildPantryUI();
-    showToast(`"${removed.name}" rimosso con successo!`);
+    showToast(`"${removed.name}" rimosso!`);
   }
 }
 
@@ -234,7 +525,7 @@ function addIngredientField(presetId = null, presetAmount = "") {
   if (!container) return;
   const row = document.createElement("div");
   row.className = "ingredient-row";
-  
+
   row.innerHTML = `
     <select class="ing-select" style="flex:2" onchange="handleIngredientSelectChange(this)">
       ${getIngredientOptionsHtml(presetId)}
@@ -272,6 +563,7 @@ function compressImage(file) {
 function resetAddForm() {
   editingRecipeId = null;
   document.getElementById("rec-title").value = "";
+  document.getElementById("rec-visibility").value = "friends";
   document.getElementById("rec-procedure").value = "";
   document.getElementById("rec-photo").value = "";
   document.getElementById("rec-rating").value = "5";
@@ -280,11 +572,8 @@ function resetAddForm() {
   if (timerInput) timerInput.value = "";
   document.getElementById("recipe-ingredients-form").innerHTML = "";
 
-  const titlePage = document.querySelector("#view-add .page-title");
-  if (titlePage) titlePage.innerText = "Nuova Ricetta";
-
-  const saveBtn = document.querySelector("#view-add .btn-main");
-  if (saveBtn) saveBtn.innerText = "Salva Ricetta";
+  document.querySelector("#view-add .page-title").innerText = "Nuova Ricetta";
+  document.getElementById("save-recipe-btn").innerText = "Salva Ricetta";
 
   const display = document.getElementById("file-name-display");
   if (display) {
@@ -297,15 +586,13 @@ async function saveNewRecipe() {
   const title = document.getElementById("rec-title").value.trim();
   if (!title) return showToast("Inserisci un titolo");
 
+  const visibility = document.getElementById("rec-visibility").value;
   const macro = document.getElementById("rec-macro").value;
   const subcat = document.getElementById("rec-subcat").value;
   const rating = Number(document.getElementById("rec-rating").value);
   const servings = Number(document.getElementById("rec-servings").value) || 1;
-  
-  const timerInput = document.getElementById("rec-timer-min");
-  const timerMinutesVal = timerInput ? timerInput.value.trim() : "";
+  const timerMinutesVal = document.getElementById("rec-timer-min").value.trim();
   const timerMinutes = timerMinutesVal ? Number(timerMinutesVal) : null;
-
   const procedure = document.getElementById("rec-procedure").value;
   const photoFile = document.getElementById("rec-photo").files[0];
 
@@ -319,114 +606,102 @@ async function saveNewRecipe() {
     }
   });
 
-  const saveBtn = document.querySelector("#view-add .btn-main");
-  if (saveBtn) {
-    saveBtn.innerText = "Salvataggio...";
-    saveBtn.disabled = true;
-  }
+  const saveBtn = document.getElementById("save-recipe-btn");
+  saveBtn.innerText = "Salvataggio nel cloud...";
+  saveBtn.disabled = true;
 
   let photoBase64 = null;
   if (photoFile) {
     photoBase64 = await compressImage(photoFile);
   } else if (editingRecipeId !== null) {
-    const existing = recipes.find(r => String(r.id) === String(editingRecipeId));
+    const existing = recipes.find(r => r.id === editingRecipeId);
     if (existing) photoBase64 = existing.photo;
   }
 
+  const payload = {
+    user_id: currentUser.id,
+    title,
+    macro,
+    subcat,
+    servings,
+    timer_minutes: timerMinutes,
+    rating,
+    procedure,
+    photo: photoBase64,
+    ingredients,
+    visibility
+  };
+
   if (editingRecipeId !== null) {
-    const index = recipes.findIndex(r => String(r.id) === String(editingRecipeId));
-    if (index !== -1) {
-      recipes[index] = {
-        id: editingRecipeId,
-        title,
-        macro,
-        subcat,
-        servings,
-        timerMinutes,
-        rating,
-        procedure,
-        photo: photoBase64,
-        ingredients
-      };
-    }
-    showToast("Ricetta aggiornata con successo!");
+    const { error } = await supabaseClient
+      .from("recipes")
+      .update(payload)
+      .eq("id", editingRecipeId);
+
+    if (error) showToast("Errore aggiornamento");
+    else showToast("Ricetta aggiornata!");
   } else {
-    recipes.push({
-      id: Date.now(),
-      title,
-      macro,
-      subcat,
-      servings,
-      timerMinutes,
-      rating,
-      procedure,
-      photo: photoBase64,
-      ingredients
-    });
-    showToast("Ricetta salvata!");
+    const { error } = await supabaseClient
+      .from("recipes")
+      .insert(payload);
+
+    if (error) showToast("Errore salvataggio");
+    else showToast("Ricetta salvata!");
   }
 
-  localStorage.setItem("gf_recipes", JSON.stringify(recipes));
-  if (saveBtn) saveBtn.disabled = false;
-  
+  saveBtn.disabled = false;
   resetAddForm();
+  await loadRecipesFromCloud();
   switchTab('recipes', document.querySelectorAll('nav button')[0]);
 }
 
 function editRecipe(recipeId) {
-  const r = recipes.find(item => String(item.id) === String(recipeId));
-  if (!r) return;
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r || r.userId !== currentUser.id) return;
 
   closeRecipeModal();
   editingRecipeId = r.id;
 
   document.getElementById("rec-title").value = r.title;
+  document.getElementById("rec-visibility").value = r.visibility || "friends";
   document.getElementById("rec-macro").value = r.macro;
   updateSubcatOptions();
 
   if (r.subcat) document.getElementById("rec-subcat").value = r.subcat;
   document.getElementById("rec-rating").value = r.rating;
   document.getElementById("rec-servings").value = r.servings || 1;
-  
-  const timerInput = document.getElementById("rec-timer-min");
-  if (timerInput) timerInput.value = r.timerMinutes || "";
-
-  document.getElementById("rec-procedure").value = r.procedure;
+  document.getElementById("rec-timer-min").value = r.timerMinutes || "";
+  document.getElementById("rec-procedure").value = r.procedure || "";
 
   const container = document.getElementById("recipe-ingredients-form");
   container.innerHTML = "";
-  r.ingredients.forEach(ing => {
-    addIngredientField(ing.id, ing.amount);
-  });
+  (r.ingredients || []).forEach(ing => addIngredientField(ing.id, ing.amount));
 
   const display = document.getElementById("file-name-display");
-  if (display) {
-    display.innerText = r.photo ? "Foto presente (clicca per sostituire)" : "Carica o scatta foto";
-    display.style.background = r.photo ? "var(--c-sky-blue)" : "var(--c-cream)";
-  }
+  display.innerText = r.photo ? "Foto presente (clicca per sostituire)" : "Carica o scatta foto";
+  display.style.background = r.photo ? "var(--c-sky-blue)" : "var(--c-cream)";
 
-  const titlePage = document.querySelector("#view-add .page-title");
-  if (titlePage) titlePage.innerText = "Modifica";
-
-  const saveBtn = document.querySelector("#view-add .btn-main");
-  if (saveBtn) saveBtn.innerText = "Aggiorna";
+  document.querySelector("#view-add .page-title").innerText = "Modifica Ricetta";
+  document.getElementById("save-recipe-btn").innerText = "Aggiorna";
 
   switchTab('add', document.querySelectorAll('nav button')[2]);
 }
 
-function deleteRecipe(recipeId) {
-  const r = recipes.find(item => String(item.id) === String(recipeId));
-  if (!r) return;
+async function deleteRecipe(recipeId) {
+  const r = recipes.find(item => item.id === recipeId);
+  if (!r || r.userId !== currentUser.id) return;
 
-  if (confirm(`Sei sicuro di voler eliminare la ricetta "${r.title}"?`)) {
-    recipes = recipes.filter(item => String(item.id) !== String(recipeId));
-    localStorage.setItem("gf_recipes", JSON.stringify(recipes));
+  if (confirm(`Vuoi eliminare "${r.title}"?`)) {
+    await supabaseClient.from("recipes").delete().eq("id", recipeId);
     closeRecipeModal();
-    renderRecipes();
+    await loadRecipesFromCloud();
     showToast("Ricetta eliminata.");
   }
 }
 
+/* =========================================================
+   DISPENSA CLOUD
+   ========================================================= */
 function buildPantryUI() {
   const c = document.getElementById("pantry-inputs");
   if (!c) return;
@@ -449,14 +724,20 @@ function buildPantryUI() {
   });
 }
 
-function savePantry() {
+async function savePantry() {
   INGREDIENTS_DB.filter(i => !i.staple).forEach(ing => {
     const el = document.getElementById("pantry-" + ing.id);
     const val = el ? Number(el.value) : 0;
     pantry[ing.id] = val > 0 ? val : 0;
   });
-  localStorage.setItem("gf_pantry", JSON.stringify(pantry));
-  showToast("Dispensa aggiornata!");
+
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ pantry })
+    .eq("id", currentUser.id);
+
+  if (error) showToast("Errore salvataggio dispensa");
+  else showToast("Dispensa sincronizzata!");
 }
 
 function isRecipeDoable(recipe) {
@@ -469,39 +750,41 @@ function isRecipeDoable(recipe) {
   });
 }
 
+/* =========================================================
+   LISTA RICETTE E MODALE
+   ========================================================= */
 function renderRecipes() {
   const list = document.getElementById("recipe-list");
   if (!list) return;
   list.innerHTML = "";
 
   const keyword = (document.getElementById("search-keyword")?.value || "").toLowerCase().trim();
-  const toggleEl = document.getElementById("toggle-doable");
-  const onlyDoable = toggleEl ? toggleEl.checked : false;
-
-  const macroFilterEl = document.getElementById("filter-macro");
-  const macroFilter = macroFilterEl ? macroFilterEl.value : "tutti";
-
-  const subcatSelect = document.getElementById("filter-subcat");
-  const subcatFilter = subcatSelect ? subcatSelect.value : "tutti";
+  const onlyDoable = document.getElementById("toggle-doable")?.checked || false;
+  const authorFilter = document.getElementById("filter-author")?.value || "all";
+  const macroFilter = document.getElementById("filter-macro")?.value || "tutti";
+  const subcatFilter = document.getElementById("filter-subcat")?.value || "tutti";
 
   const filtered = recipes.filter(r => {
+    const isMine = r.userId === currentUser.id;
+    if (authorFilter === "mine" && !isMine) return false;
+    if (authorFilter === "friends" && isMine) return false;
+
     if (keyword) {
       const matchTitle = r.title.toLowerCase().includes(keyword);
+      const matchAuthor = r.authorName.toLowerCase().includes(keyword);
       const matchIngredient = (r.ingredients || []).some(i => {
         const info = INGREDIENTS_DB.find(db => db.id === i.id);
         return info && info.name.toLowerCase().includes(keyword);
       });
-      if (!matchTitle && !matchIngredient) return false;
+      if (!matchTitle && !matchIngredient && !matchAuthor) return false;
     }
 
     if (macroFilter !== "tutti" && r.macro !== macroFilter) return false;
-    
     if (subcatFilter !== "tutti" && (r.macro === "dolci" || r.macro === "salati")) {
       if (r.subcat !== subcatFilter) return false;
     }
-
     if (onlyDoable && !isRecipeDoable(r)) return false;
-    
+
     return true;
   });
 
@@ -512,29 +795,29 @@ function renderRecipes() {
 
   filtered.forEach(r => {
     const doable = isRecipeDoable(r);
+    const isMine = r.userId === currentUser.id;
     const card = document.createElement("div");
     card.className = "recipe-card";
-    
+
     card.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       openRecipeModal(r.id);
     });
 
-    const imgHtml = r.photo 
+    const imgHtml = r.photo
       ? `<img src="${r.photo}" class="recipe-img">`
       : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
 
     card.innerHTML = `
-      <div class="recipe-card-img-container">
-        ${imgHtml}
-      </div>
+      <div class="recipe-card-img-container">${imgHtml}</div>
       <div class="recipe-body">
         <div>
           <h4 class="recipe-title">${r.title}</h4>
           <div>
             <div class="stars">${"★".repeat(r.rating || 5)}${"☆".repeat(5 - (r.rating || 5))}</div>
             <div class="recipe-tags">
+              ${!isMine ? `<span class="badge badge-author">👤 ${r.authorName}</span>` : ''}
               <span class="badge badge-macro">${r.macro}</span>
               ${r.subcat ? `<span class="badge badge-sub">${r.subcat}</span>` : ''}
               ${doable ? `<span class="badge badge-doable">Fattibile</span>` : ''}
@@ -550,13 +833,9 @@ function renderRecipes() {
   });
 }
 
-/* --- DETTAGLIO SCHEDA RICETTA --- */
-
 async function requestWakeLock() {
   if ('wakeLock' in navigator) {
-    try {
-      wakeLockSentinel = await navigator.wakeLock.request('screen');
-    } catch (err) {}
+    try { wakeLockSentinel = await navigator.wakeLock.request('screen'); } catch (err) {}
   }
 }
 
@@ -568,7 +847,7 @@ function releaseWakeLock() {
 }
 
 function openRecipeModal(recipeId) {
-  const r = recipes.find(item => String(item.id) === String(recipeId));
+  const r = recipes.find(item => item.id === recipeId);
   if (!r) return;
 
   currentOpenRecipe = r;
@@ -585,6 +864,7 @@ function renderModalContent() {
   const r = currentOpenRecipe;
   if (!r) return;
 
+  const isMine = r.userId === currentUser.id;
   const doable = isRecipeDoable(r);
   const body = document.getElementById("modal-body");
   if (!body) return;
@@ -600,9 +880,8 @@ function renderModalContent() {
     return `<div class="modal-ingredient-item">• ${name}: <strong>${scaledAmount} ${unit}</strong></div>`;
   }).join("");
 
-  const imageHtml = r.photo 
-    ? `<img src="${r.photo}" class="modal-img" onerror="this.onerror=null; this.src=''; this.style.display='none'; document.getElementById('modal-img-fallback').style.display='flex';">
-       <div id="modal-img-fallback" class="modal-img" style="display:none;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>` 
+  const imageHtml = r.photo
+    ? `<img src="${r.photo}" class="modal-img">`
     : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>`;
 
   const timerHtml = r.timerMinutes ? `
@@ -617,10 +896,19 @@ function renderModalContent() {
     </div>
   ` : '';
 
+  // Mostra i pulsanti Modifica/Elimina solo al proprietario della ricetta
+  const ownerActionsHtml = isMine ? `
+    <div class="modal-actions">
+      <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
+      <button type="button" class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
+    </div>
+  ` : '';
+
   body.innerHTML = `
     ${imageHtml}
     <h3 class="modal-title">${r.title}</h3>
     <div style="margin-bottom: 10px;">
+      ${!isMine ? `<span class="badge badge-author">DI ${r.authorName.toUpperCase()}</span>` : ''}
       <span class="badge badge-macro">${(r.macro || '').toUpperCase()}</span>
       ${r.subcat ? `<span class="badge badge-sub">${r.subcat.toUpperCase()}</span>` : ''}
       ${doable ? `<span class="badge badge-doable">FATTIBILE ORA</span>` : ''}
@@ -641,11 +929,7 @@ function renderModalContent() {
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
 
     ${timerHtml}
-
-    <div class="modal-actions">
-      <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
-      <button type="button" class="btn-action btn-delete" onclick="deleteRecipe('${r.id}')">🗑️ Elimina</button>
-    </div>
+    ${ownerActionsHtml}
   `;
 }
 
@@ -657,14 +941,9 @@ function adjustServings(delta) {
   }
 }
 
-// Sblocco audio per iPhone
 function unlockAudioContext() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   const buffer = audioCtx.createBuffer(1, 1, 22050);
   const source = audioCtx.createBufferSource();
   source.buffer = buffer;
@@ -674,7 +953,6 @@ function unlockAudioContext() {
 
 function startKitchenTimer() {
   if (timerInterval) clearInterval(timerInterval);
-
   unlockAudioContext();
 
   const inputMinutes = Number(document.getElementById("timer-minutes-input")?.value) || 1;
@@ -684,16 +962,11 @@ function startKitchenTimer() {
   timerInterval = setInterval(() => {
     timerSecondsRemaining--;
     updateTimerDisplay();
-
     if (timerSecondsRemaining <= 0) {
       clearInterval(timerInterval);
       timerInterval = null;
-      
       playBeepSound();
-
-      setTimeout(() => {
-        showToast("⏰ Tempo scaduto per la tua ricetta!", 2000);
-      }, 1000);
+      setTimeout(() => showToast("⏰ Tempo scaduto!", 2000), 1000);
     }
   }, 1000);
 }
@@ -717,153 +990,90 @@ function updateTimerDisplay() {
 
 function playBeepSound() {
   try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
 
-    const beeps = [0, 0.35, 0.7];
-    beeps.forEach(delay => {
+    [0, 0.35, 0.7].forEach(delay => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(880, audioCtx.currentTime + delay);
-
       const startTime = audioCtx.currentTime + delay;
       gain.gain.setValueAtTime(0.4, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
-
       osc.start(startTime);
       osc.stop(startTime + 0.25);
     });
-  } catch (e) {
-    console.warn("Riproduzione audio non riuscita:", e);
-  }
+  } catch (e) {}
 }
 
 function closeRecipeModal() {
   const modal = document.getElementById("recipe-modal");
   if (modal) modal.classList.remove("open");
-  
   releaseWakeLock();
   resetKitchenTimer();
   currentOpenRecipe = null;
 }
 
-/* --- FUNZIONI DI SALVATAGGIO DATI (COPIA / INCOLLA & FILE) --- */
-
-function exportDataBackup() {
-  const exportPayload = {
-    version: 2,
-    exportedAt: new Date().toISOString(),
-    recipes: recipes,
-    pantry: pantry,
-    customIngredients: customIngredients
-  };
-
-  const jsonString = JSON.stringify(exportPayload);
-  const container = document.getElementById("backup-text-container");
-  const textarea = document.getElementById("backup-text-area");
-
-  if (container && textarea) {
-    textarea.value = jsonString;
-    container.style.display = "block";
-    textarea.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  if (navigator.share) {
-    try {
-      navigator.share({
-        title: "Backup Ricette GF",
-        text: jsonString
-      }).catch(() => {});
-    } catch(e) {}
-  }
-}
-
-function copyBackupToClipboard() {
-  const textarea = document.getElementById("backup-text-area");
-  if (!textarea || !textarea.value) return;
-
-  navigator.clipboard.writeText(textarea.value).then(() => {
-    showToast("✅ Codice di backup copiato!");
-  }).catch(() => {
-    textarea.select();
-    document.execCommand("copy");
-    showToast("✅ Codice copiato negli appunti!");
-  });
-}
-
-function importFromTextArea() {
-  const textarea = document.getElementById("backup-text-area");
-  const rawData = textarea ? textarea.value.trim() : "";
-  if (!rawData) return showToast("Incolla prima il testo del backup");
-
-  try {
-    const data = JSON.parse(rawData);
-    processImportedData(data);
-  } catch(err) {
-    showToast("Il testo inserito non è valido");
-  }
-}
-
-function importDataBackup(input) {
+/* =========================================================
+   IMPORTAZIONE VECCHI BACKUP LOCALI NEL CLOUD
+   ========================================================= */
+function importDataBackupToCloud(input) {
   const file = input.files && input.files[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      processImportedData(data);
+      if (!data.recipes || !Array.isArray(data.recipes)) {
+        return showToast("File non valido");
+      }
+
+      showToast("Caricamento nel cloud in corso...", 3000);
+
+      if (data.customIngredients && Array.isArray(data.customIngredients)) {
+        const existingIds = new Set(customIngredients.map(i => i.id));
+        data.customIngredients.forEach(i => {
+          if (!existingIds.has(i.id)) customIngredients.push(i);
+        });
+        INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
+      }
+
+      if (data.pantry) {
+        pantry = Object.assign({}, pantry, data.pantry);
+      }
+
+      await supabaseClient
+        .from("profiles")
+        .update({ custom_ingredients: customIngredients, pantry })
+        .eq("id", currentUser.id);
+
+      const recipesToInsert = data.recipes.map(r => ({
+        user_id: currentUser.id,
+        title: r.title,
+        macro: r.macro || "dolci",
+        subcat: r.subcat || null,
+        servings: r.servings || 1,
+        timer_minutes: r.timerMinutes || null,
+        rating: r.rating || 5,
+        procedure: r.procedure || "",
+        photo: r.photo || null,
+        ingredients: r.ingredients || [],
+        visibility: "friends"
+      }));
+
+      await supabaseClient.from("recipes").insert(recipesToInsert);
+
       input.value = "";
+      buildPantryUI();
+      await loadRecipesFromCloud();
+      showToast(`Importate ${recipesToInsert.length} ricette nel cloud!`);
     } catch (err) {
-      showToast("Errore lettura file di backup");
+      showToast("Errore lettura file JSON");
     }
   };
   reader.readAsText(file);
-}
-
-function processImportedData(data) {
-  if (!data.recipes || !Array.isArray(data.recipes)) {
-    showToast("Formato dati non valido");
-    return;
-  }
-
-  if (data.customIngredients && Array.isArray(data.customIngredients)) {
-    const existingIds = new Set(customIngredients.map(i => i.id));
-    data.customIngredients.forEach(i => {
-      if (!existingIds.has(i.id)) {
-        customIngredients.push(i);
-      }
-    });
-    localStorage.setItem("gf_custom_ingredients", JSON.stringify(customIngredients));
-    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
-  }
-
-  if (confirm(`Trovate ${data.recipes.length} ricette.\n\nPremi OK per SOSTITUIRE tutto l'archivio.\nPremi ANNULLA per UNIRE alle ricette attuali.`)) {
-    recipes = data.recipes;
-    pantry = data.pantry || {};
-  } else {
-    const existingIds = new Set(recipes.map(r => String(r.id)));
-    data.recipes.forEach(r => {
-      if (!existingIds.has(String(r.id))) {
-        recipes.push(r);
-      }
-    });
-    pantry = Object.assign({}, pantry, data.pantry || {});
-  }
-
-  localStorage.setItem("gf_recipes", JSON.stringify(recipes));
-  localStorage.setItem("gf_pantry", JSON.stringify(pantry));
-
-  showToast("Dati ripristinati con successo!");
-  buildPantryUI();
-  renderRecipes();
 }

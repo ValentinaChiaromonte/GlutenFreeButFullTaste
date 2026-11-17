@@ -10,184 +10,245 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="SenzaGlutine">
 
-  <!-- Google Fonts: Chewy e Story Script -->
+  <!-- Google Fonts: Chewy -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Chewy&family=Story+Script&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
+
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <link rel="stylesheet" href="style.css">
-
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 
   <header>
     <div class="app-title">Senza glutine ma buono</div>
+    <div id="user-header-bar" style="display: none; font-size: 0.95rem; margin-top: 4px;">
+      Ciao, <span id="current-user-email"></span> • 
+      <button type="button" onclick="logoutUser()" class="btn-link-logout">Esci</button>
+    </div>
   </header>
 
-  <div class="container">
-    <!-- VISTA 1: CONSULTAZIONE -->
-    <section id="view-recipes" class="tab-content active">
-      <h3 class="page-title">Lasciati ispirare...</h3>
-      <div class="controls-container">
-        <!-- Campo ricerca testuale manuale -->
-        <div class="form-group" style="margin-bottom: 10px;">
-          <input type="text" id="search-keyword" placeholder="Cerca per nome o ingrediente...">
-        </div>
-
-        <div class="filter-toggle">
-          <span>In base alle mie scorte</span>
-          <label class="switch">
-            <input type="checkbox" id="toggle-doable">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="form-group" style="margin-bottom: 8px;">
-          <select id="filter-macro" onchange="updateFilterSubcatOptions()">
-            <option value="tutti">Tutto</option>
-            <option value="dolci">Dolci</option>
-            <option value="salati">Salati</option>
-          </select>
-        </div>
-
-        <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 12px;">
-          <select id="filter-subcat">
-            <option value="tutti">Tutte le sottocategorie</option>
-          </select>
-        </div>
-
-        <button type="button" class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca</button>
+  <!-- SCHERMATA AUTENTICAZIONE -->
+  <div id="auth-screen" class="container" style="display: none;">
+    <h3 class="page-title" id="auth-title">Accedi alla Community</h3>
+    <div class="form-card">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-email" placeholder="la-tua@email.it" autocomplete="email">
       </div>
-
-      <div id="recipe-list"></div>
-    </section>
-
-    <!-- VISTA 2: DISPENSA -->
-    <section id="view-pantry" class="tab-content">
-      <h3 class="page-title">Cosa offre la casa?</h3>
-      <p class="info">Inserisci le scorte a disposizione. <br> Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono già dati per presenti.</p>
-      
-      <div class="form-card">
-        <div id="pantry-inputs"></div>
-        <button type="button" class="btn-main" onclick="savePantry()">È tutto</button>
+      <div class="form-group">
+        <label>Password (min. 6 caratteri)</label>
+        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
       </div>
-    </section>
-
-    <!-- VISTA 3: AGGIUNGI RICETTA & SALVATAGGIO DATI -->
-    <section id="view-add" class="tab-content">
-      <h3 class="page-title">Nuova Ricetta</h3>
-      <div class="form-card">
-        <div class="form-group">
-          <label>Titolo</label>
-          <input type="text" id="rec-title" placeholder="Es. Torta margherita">
-        </div>
-
-        <div class="form-group">
-          <label>Macro-categoria</label>
-          <select id="rec-macro" onchange="updateSubcatOptions()">
-            <option value="dolci">Dolci</option>
-            <option value="salati">Salati</option>
-          </select>
-        </div>
-
-        <div id="subcat-container" class="form-group">
-          <label>Sotto-categoria</label>
-          <select id="rec-subcat"></select>
-        </div>
-
-        <div class="form-group">
-          <label>Porzioni</label>
-          <input type="number" id="rec-servings" value="1" min="1" placeholder="1">
-        </div>
-
-        <div class="form-group">
-          <label>Valutazione</label>
-          <select id="rec-rating">
-            <option value="5">★★★★★</option>
-            <option value="4">★★★★☆</option>
-            <option value="3">★★★☆☆</option>
-            <option value="2">★★☆☆☆</option>
-            <option value="1">★☆☆☆☆</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Foto</label>
-          <div class="file-input-wrapper">
-            <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
-            <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Ingredienti</label>
-          <div id="recipe-ingredients-form"></div>
-          <button type="button" class="btn-add-ing" onclick="addIngredientField()">+ Aggiungi ingrediente</button>
-        </div>
-
-        <div class="form-group">
-          <label>Procedimento</label>
-          <textarea id="rec-procedure" rows="4" placeholder="Passaggi di preparazione..."></textarea>
-        </div>
-        
-        <div class="form-group">
-          <label>Timer cottura in minuti (lascia vuoto se non serve)</label>
-          <input type="number" id="rec-timer-min" min="1" max="360" placeholder="Es. 25">
-        </div>
-
-        <button type="button" class="btn-main" onclick="saveNewRecipe()">Salva Ricetta</button>
-      </div>
-
-      <!-- Sezione Salvataggio Dati (Copia / Incolla e File) -->
-      <h3 class="page-title" style="margin-top: 24px;">Salvataggio Dati</h3>
-      <div class="form-card">
-        <p style="font-size: 0.95rem; margin-top: 0; margin-bottom: 12px;">Esporta i tuoi dati</p>
-        
-        <div style="display: flex; gap: 8px; flex-direction: column;">
-          <button type="button" class="btn-main" onclick="exportDataBackup()" style="margin-top: 0; background: var(--c-sky-blue);">Copia Backup</button>
-        </div>
-
-        <div id="backup-text-container" style="display: none; margin-top: 14px;">
-          <label>Codice di Backup:</label>
-          <textarea id="backup-text-area" rows="6" style="font-size: 0.85rem; font-family: monospace; background: var(--c-cream);"></textarea>
-          <button type="button" class="btn-main" onclick="copyBackupToClipboard()" style="margin-top: 6px; background: var(--c-cream);">Copia negli Appunti</button>
-          <button type="button" class="btn-main" onclick="importFromTextArea()" style="margin-top: 6px; background: var(--c-teal);">Ripristina da questo testo</button>
-        </div>
-
-        <div style="margin-top: 16px;">
-          <label style="margin-bottom: 6px;">Ripristina da file .json:</label>
-          <div class="file-input-wrapper">
-            <span class="file-input-btn" id="backup-file-label">Seleziona file .json</span>
-            <input type="file" id="backup-file-input" accept=".json" onchange="importDataBackup(this)">
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- MODALE DETTAGLIO RICETTA -->
-  <div id="recipe-modal" class="modal-overlay">
-    <div class="modal-content">
-      <button type="button" class="modal-close" onclick="closeRecipeModal()">✕</button>
-      <div id="modal-body"></div>
+      <button type="button" class="btn-main" id="auth-submit-btn" onclick="handleAuthSubmit()">Accedi</button>
+      <button type="button" class="btn-main" id="auth-toggle-btn" onclick="toggleAuthMode()" style="background: var(--c-sky-blue); font-size: 1.05rem;">
+        Non hai un account? Registrati
+      </button>
     </div>
   </div>
 
-  <nav>
-    <button type="button" class="active" onclick="switchTab('recipes', this)">
-      <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
-      Ricette
-    </button>
-    <button type="button" onclick="switchTab('pantry', this)">
-      <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
-      Dispensa
-    </button>
-    <button type="button" onclick="switchTab('add', this)">
-      <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
-      Aggiungi
-    </button>
-  </nav>
+  <!-- CONTENUTO PRINCIPALE APP (Visibile solo da loggati) -->
+  <div id="app-main" style="display: none;">
+    <div class="container">
+      <!-- VISTA 1: CONSULTAZIONE -->
+      <section id="view-recipes" class="tab-content active">
+        <h3 class="page-title">Lasciati ispirare...</h3>
+        <div class="controls-container">
+          <div class="form-group" style="margin-bottom: 10px;">
+            <input type="text" id="search-keyword" placeholder="Cerca per nome o ingrediente...">
+          </div>
+
+          <div class="filter-toggle">
+            <span>In base alle mie scorte</span>
+            <label class="switch">
+              <input type="checkbox" id="toggle-doable">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <select id="filter-author">
+              <option value="all">Tutte le ricette (Mie + Amici)</option>
+              <option value="mine">Solo le mie ricette</option>
+              <option value="friends">Solo ricette degli amici</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <select id="filter-macro" onchange="updateFilterSubcatOptions()">
+              <option value="tutti">Tutto (Dolci & Salati)</option>
+              <option value="dolci">Dolci</option>
+              <option value="salati">Salati</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 12px;">
+            <select id="filter-subcat">
+              <option value="tutti">Tutte le sottocategorie</option>
+            </select>
+          </div>
+
+          <button type="button" class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca</button>
+        </div>
+
+        <div id="recipe-list"></div>
+      </section>
+
+      <!-- VISTA 2: DISPENSA -->
+      <section id="view-pantry" class="tab-content">
+        <h3 class="page-title">Cosa offre la casa?</h3>
+        <p class="info">La tua dispensa è sincronizzata su tutti i tuoi dispositivi. <br> Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono già dati per presenti.</p>
+        
+        <div class="form-card">
+          <div id="pantry-inputs"></div>
+          <button type="button" class="btn-main" onclick="savePantry()">Salva Dispensa</button>
+        </div>
+      </section>
+
+      <!-- VISTA 3: AGGIUNGI / MODIFICA RICETTA -->
+      <section id="view-add" class="tab-content">
+        <h3 class="page-title">Nuova Ricetta</h3>
+        <div class="form-card">
+          <div class="form-group">
+            <label>Titolo</label>
+            <input type="text" id="rec-title" placeholder="Es. Torta margherita">
+          </div>
+
+          <div class="form-group">
+            <label>Chi può vedere questa ricetta?</label>
+            <select id="rec-visibility">
+              <option value="friends">👥 Condivisa con i miei amici</option>
+              <option value="private">🔒 Solo io (Privata)</option>
+              <option value="public">🌍 Pubblica (Tutta la community)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Macro-categoria</label>
+            <select id="rec-macro" onchange="updateSubcatOptions()">
+              <option value="dolci">Dolci</option>
+              <option value="salati">Salati</option>
+            </select>
+          </div>
+
+          <div id="subcat-container" class="form-group">
+            <label>Sotto-categoria</label>
+            <select id="rec-subcat"></select>
+          </div>
+
+          <div class="form-group">
+            <label>Porzioni</label>
+            <input type="number" id="rec-servings" value="1" min="1" placeholder="1">
+          </div>
+
+          <div class="form-group">
+            <label>Valutazione</label>
+            <select id="rec-rating">
+              <option value="5">★★★★★</option>
+              <option value="4">★★★★☆</option>
+              <option value="3">★★★☆☆</option>
+              <option value="2">★★☆☆☆</option>
+              <option value="1">★☆☆☆☆</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Foto</label>
+            <div class="file-input-wrapper">
+              <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
+              <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Ingredienti</label>
+            <div id="recipe-ingredients-form"></div>
+            <button type="button" class="btn-add-ing" onclick="addIngredientField()">+ Aggiungi ingrediente</button>
+          </div>
+
+          <div class="form-group">
+            <label>Procedimento</label>
+            <textarea id="rec-procedure" rows="4" placeholder="Passaggi di preparazione..."></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Timer cottura in minuti (lascia vuoto se non serve)</label>
+            <input type="number" id="rec-timer-min" min="1" max="360" placeholder="Es. 25">
+          </div>
+
+          <button type="button" class="btn-main" id="save-recipe-btn" onclick="saveNewRecipe()">Salva Ricetta</button>
+        </div>
+
+        <!-- Importazione Backup locale verso Cloud -->
+        <h3 class="page-title" style="margin-top: 24px;">Importa Backup Locale</h3>
+        <div class="form-card">
+          <p style="font-size: 0.95rem; margin-top: 0;">Hai un vecchio file .json salvato sul dispositivo? Caricalo qui per trasferirlo nel tuo account cloud.</p>
+          <div class="file-input-wrapper">
+            <span class="file-input-btn" id="backup-file-label">Carica file .json nel Cloud</span>
+            <input type="file" id="backup-file-input" accept=".json" onchange="importDataBackupToCloud(this)">
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA 4: AMICI E CONDIVISIONE -->
+      <section id="view-friends" class="tab-content">
+        <h3 class="page-title">I tuoi Amici</h3>
+        
+        <div class="form-card">
+          <label>Aggiungi un amico tramite email</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="email" id="friend-email-input" placeholder="email@amico.it">
+            <button type="button" class="btn-main" onclick="sendFriendRequest()" style="width: auto; margin-top: 0; padding: 0 18px;">Invita</button>
+          </div>
+        </div>
+
+        <!-- Richieste in sospeso -->
+        <div id="pending-requests-box" class="form-card" style="display: none; background: var(--c-sky-blue);">
+          <h4 style="margin: 0 0 10px 0; font-size: 1.3rem;">🔔 Richieste di amicizia ricevute</h4>
+          <div id="pending-requests-list"></div>
+        </div>
+
+        <!-- Lista amici confermati -->
+        <div class="form-card">
+          <h4 style="margin: 0 0 10px 0; font-size: 1.3rem;">👥 Lista Amici Salvati</h4>
+          <div id="friends-list">
+            <p style="margin: 0;">Caricamento...</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- MODALE DETTAGLIO RICETTA -->
+    <div id="recipe-modal" class="modal-overlay">
+      <div class="modal-content">
+        <button type="button" class="modal-close" onclick="closeRecipeModal()">✕</button>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <nav>
+      <button type="button" class="active" onclick="switchTab('recipes', this)">
+        <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
+        Ricette
+      </button>
+      <button type="button" onclick="switchTab('pantry', this)">
+        <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
+        Dispensa
+      </button>
+      <button type="button" onclick="switchTab('add', this)">
+        <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
+        Aggiungi
+      </button>
+      <button type="button" onclick="switchTab('friends', this)" style="position: relative;">
+        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        Amici
+        <span id="friends-badge" class="nav-badge" style="display: none;">0</span>
+      </button>
+    </nav>
+  </div>
 
   <script src="app.js"></script>
 </body>
