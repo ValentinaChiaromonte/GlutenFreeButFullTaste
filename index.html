@@ -19,7 +19,7 @@
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=1">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
@@ -111,7 +111,7 @@
         </div>
       </section>
 
-      <!-- VISTA 3: FORM NUOVA / MODIFICA RICETTA (Aperta dal pannello laterale o Modifica) -->
+      <!-- VISTA 3: FORM NUOVA / MODIFICA RICETTA -->
       <section id="view-add" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <button type="button" class="btn-add-ing" style="margin-top: 0;" onclick="cancelRecipeForm()">← Indietro</button>
@@ -214,7 +214,6 @@
         <div class="drawer-profile-card">
           <div style="font-size: 1.35rem; margin-bottom: 2px;" id="drawer-username">Utente</div>
           <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 12px; word-break: break-all;" id="drawer-email"></div>
-          
           <button type="button" class="drawer-btn" onclick="changeUsername()">✏️ Cambia nome utente</button>
         </div>
 
@@ -236,13 +235,11 @@
               <button type="button" class="btn-timer" style="flex: 0; padding: 0 12px;" onclick="sendFriendRequest()">Invita</button>
             </div>
 
-            <!-- Richieste in sospeso -->
             <div id="pending-requests-box" style="display: none; margin-bottom: 12px;">
               <div style="font-size: 1rem; margin-bottom: 6px;">🔔 Richieste ricevute:</div>
               <div id="pending-requests-list"></div>
             </div>
 
-            <!-- Lista amici confermati -->
             <div id="friends-list">
               <p style="margin: 0; font-size: 0.95rem;">Nessun amico ancora.</p>
             </div>
@@ -265,7 +262,7 @@
       </div>
     </div>
 
-    <!-- BARRA NAVIGAZIONE INFERIORE A 2 PAGINE (RICETTE E DISPENSA) -->
+    <!-- BARRA NAVIGAZIONE INFERIORE A 2 PAGINE -->
     <nav>
       <button type="button" id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
         <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
@@ -278,6 +275,9 @@
     </nav>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <!-- CARICAMENTO MODULARE DEI FILE JS -->
+  <script src="js/config.js?v=1"></script>
+  <script src="js/auth.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
 </body>
 </html>
