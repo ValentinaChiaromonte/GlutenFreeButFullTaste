@@ -1,8 +1,5 @@
-// =========================================================
-// CONFIGURAZIONE SUPABASE E COSTANTI GLOBALI
-// =========================================================
 const SUPABASE_URL = "https://dggidzqiwzynldamgaxc.supabase.co";
-const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_PUBLISHABLE_O_ANON_KEY";
+const SUPABASE_ANON_KEY = "sb_publishable_fAg5JY0JKOQ7i2USobGWig_kPTC8AmM";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
