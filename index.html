@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Senza glutine ma buono</title>
 
-  <!-- iOS Standalone Meta -->
+  <!-- iOS / Mobile Standalone Meta -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -19,16 +19,18 @@
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 
   <header>
-    <div class="app-title">Senza glutine ma buono</div>
-    <div id="user-header-bar" style="display: none; font-size: 0.95rem; margin-top: 4px;">
-      Ciao, <span id="current-user-email"></span> • 
-      <button type="button" onclick="logoutUser()" class="btn-link-logout">Esci</button>
+    <div class="header-inner">
+      <div class="app-title">Senza glutine ma buono</div>
+      <button type="button" id="open-drawer-btn" class="drawer-trigger-btn" onclick="openSideDrawer()" style="display: none;" aria-label="Menu Profilo">
+        <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span id="drawer-notif-dot" class="notif-dot" style="display: none;"></span>
+      </button>
     </div>
   </header>
 
@@ -51,10 +53,10 @@
     </div>
   </div>
 
-  <!-- CONTENUTO PRINCIPALE APP (Visibile solo da loggati) -->
+  <!-- CONTENUTO PRINCIPALE APP -->
   <div id="app-main" style="display: none;">
     <div class="container">
-      <!-- VISTA 1: CONSULTAZIONE -->
+      <!-- VISTA 1: RICERCA RICETTE (PRINCIPALE) -->
       <section id="view-recipes" class="tab-content active">
         <h3 class="page-title">Lasciati ispirare...</h3>
         <div class="controls-container">
@@ -109,9 +111,14 @@
         </div>
       </section>
 
-      <!-- VISTA 3: AGGIUNGI / MODIFICA RICETTA -->
+      <!-- VISTA 3: FORM NUOVA / MODIFICA RICETTA (Aperta dal pannello laterale o Modifica) -->
       <section id="view-add" class="tab-content">
-        <h3 class="page-title">Nuova Ricetta</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <button type="button" class="btn-add-ing" style="margin-top: 0;" onclick="cancelRecipeForm()">← Indietro</button>
+          <h3 class="page-title" style="margin: 0;">Nuova Ricetta</h3>
+          <div style="width: 75px;"></div>
+        </div>
+
         <div class="form-card">
           <div class="form-group">
             <label>Titolo</label>
@@ -193,33 +200,61 @@
           </div>
         </div>
       </section>
+    </div>
 
-      <!-- VISTA 4: AMICI E CONDIVISIONE -->
-      <section id="view-friends" class="tab-content">
-        <h3 class="page-title">I tuoi Amici</h3>
-        
-        <div class="form-card">
-          <label>Aggiungi un amico tramite email</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="email" id="friend-email-input" placeholder="email@amico.it">
-            <button type="button" class="btn-main" onclick="sendFriendRequest()" style="width: auto; margin-top: 0; padding: 0 18px;">Invita</button>
+    <!-- PANNELLO LATERALE PROFILO, AMICI E NUOVA RICETTA -->
+    <div id="side-drawer-overlay" class="drawer-overlay" onclick="closeSideDrawer()">
+      <aside id="side-drawer" class="side-drawer" onclick="event.stopPropagation()">
+        <div class="drawer-header">
+          <span style="font-size: 1.4rem;">Il mio Account</span>
+          <button type="button" class="modal-close" style="position: static;" onclick="closeSideDrawer()">✕</button>
+        </div>
+
+        <!-- Dati Account -->
+        <div class="drawer-profile-card">
+          <div style="font-size: 1.35rem; margin-bottom: 2px;" id="drawer-username">Utente</div>
+          <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 12px; word-break: break-all;" id="drawer-email"></div>
+          
+          <button type="button" class="drawer-btn" onclick="changeUsername()">✏️ Cambia nome utente</button>
+        </div>
+
+        <!-- Pulsante Nuova Ricetta -->
+        <button type="button" class="btn-main" style="margin-top: 0; margin-bottom: 14px; background: var(--c-sky-blue);" onclick="openNewRecipeFormFromDrawer()">
+          ➕ Nuova Ricetta
+        </button>
+
+        <!-- Sezione Amici a comparsa -->
+        <div class="drawer-accordion">
+          <button type="button" class="drawer-accordion-toggle" onclick="toggleFriendsDrawerSection()">
+            <span>👥 I miei Amici <span id="drawer-friends-count"></span></span>
+            <span id="friends-chevron">▼</span>
+          </button>
+
+          <div id="drawer-friends-content" style="display: none; margin-top: 10px;">
+            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+              <input type="email" id="friend-email-input" placeholder="email@amico.it" style="padding: 8px 12px; font-size: 1rem;">
+              <button type="button" class="btn-timer" style="flex: 0; padding: 0 12px;" onclick="sendFriendRequest()">Invita</button>
+            </div>
+
+            <!-- Richieste in sospeso -->
+            <div id="pending-requests-box" style="display: none; margin-bottom: 12px;">
+              <div style="font-size: 1rem; margin-bottom: 6px;">🔔 Richieste ricevute:</div>
+              <div id="pending-requests-list"></div>
+            </div>
+
+            <!-- Lista amici confermati -->
+            <div id="friends-list">
+              <p style="margin: 0; font-size: 0.95rem;">Nessun amico ancora.</p>
+            </div>
           </div>
         </div>
 
-        <!-- Richieste in sospeso -->
-        <div id="pending-requests-box" class="form-card" style="display: none; background: var(--c-sky-blue);">
-          <h4 style="margin: 0 0 10px 0; font-size: 1.3rem;">🔔 Richieste di amicizia ricevute</h4>
-          <div id="pending-requests-list"></div>
+        <!-- Azioni finali account -->
+        <div class="drawer-footer-actions">
+          <button type="button" class="drawer-btn" onclick="logoutUser()">🚪 Esci</button>
+          <button type="button" class="drawer-btn drawer-btn-danger" onclick="deleteUserAccount()">🗑️ Elimina account</button>
         </div>
-
-        <!-- Lista amici confermati -->
-        <div class="form-card">
-          <h4 style="margin: 0 0 10px 0; font-size: 1.3rem;">👥 Lista Amici Salvati</h4>
-          <div id="friends-list">
-            <p style="margin: 0;">Caricamento...</p>
-          </div>
-        </div>
-      </section>
+      </aside>
     </div>
 
     <!-- MODALE DETTAGLIO RICETTA -->
@@ -230,27 +265,19 @@
       </div>
     </div>
 
+    <!-- BARRA NAVIGAZIONE INFERIORE A 2 PAGINE (RICETTE E DISPENSA) -->
     <nav>
-      <button type="button" class="active" onclick="switchTab('recipes', this)">
+      <button type="button" id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
         <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
         Ricette
       </button>
-      <button type="button" onclick="switchTab('pantry', this)">
+      <button type="button" id="nav-btn-pantry" onclick="switchTab('pantry', this)">
         <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
         Dispensa
-      </button>
-      <button type="button" onclick="switchTab('add', this)">
-        <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" /></svg>
-        Aggiungi
-      </button>
-      <button type="button" onclick="switchTab('friends', this)" style="position: relative;">
-        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-        Amici
-        <span id="friends-badge" class="nav-badge" style="display: none;">0</span>
       </button>
     </nav>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

@@ -1,5 +1,8 @@
+// =========================================================
+// INSERISCI QUI I TUOI DATI SUPABASE (CHIAVE PUBBLICA!)
+// =========================================================
 const SUPABASE_URL = "https://dggidzqiwzynldamgaxc.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_fAg5JY0JKOQ7i2USobGWig_kPTC8AmM";
+const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_PUBLISHABLE_O_ANON_KEY";
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -38,6 +41,7 @@ const BASE_INGREDIENTS = [
 ];
 
 let currentUser = null;
+let currentProfile = null;
 let isSignUpMode = false;
 let customIngredients = [];
 let INGREDIENTS_DB = [...BASE_INGREDIENTS];
@@ -83,7 +87,6 @@ window.onload = async () => {
     });
   }
 
-  // Controlla se esiste già una sessione salvata su PC / iPhone / iPad
   const { data: { session } } = await supabaseClient.auth.getSession();
   handleSessionChange(session);
 
@@ -95,21 +98,22 @@ window.onload = async () => {
 async function handleSessionChange(session) {
   const authScreen = document.getElementById("auth-screen");
   const appMain = document.getElementById("app-main");
-  const headerBar = document.getElementById("user-header-bar");
+  const drawerBtn = document.getElementById("open-drawer-btn");
 
   if (session && session.user) {
     currentUser = session.user;
     authScreen.style.display = "none";
     appMain.style.display = "block";
-    headerBar.style.display = "block";
-    document.getElementById("current-user-email").innerText = currentUser.email.split("@")[0];
+    drawerBtn.style.display = "flex";
 
     await loadUserProfileAndData();
   } else {
     currentUser = null;
+    currentProfile = null;
+    closeSideDrawer();
     authScreen.style.display = "block";
     appMain.style.display = "none";
-    headerBar.style.display = "none";
+    drawerBtn.style.display = "none";
   }
 }
 
@@ -153,9 +157,95 @@ async function handleAuthSubmit() {
   btn.innerText = isSignUpMode ? "Registrati" : "Accedi";
 }
 
+/* =========================================================
+   PANNELLO LATERALE (ACCOUNT, AMICI, NUOVA RICETTA)
+   ========================================================= */
+function openSideDrawer() {
+  const overlay = document.getElementById("side-drawer-overlay");
+  if (overlay) overlay.classList.add("open");
+  loadFriendships();
+}
+
+function closeSideDrawer() {
+  const overlay = document.getElementById("side-drawer-overlay");
+  if (overlay) overlay.classList.remove("open");
+}
+
+function toggleFriendsDrawerSection() {
+  const content = document.getElementById("drawer-friends-content");
+  const chevron = document.getElementById("friends-chevron");
+  if (!content) return;
+
+  const isOpen = content.style.display === "block";
+  content.style.display = isOpen ? "none" : "block";
+  if (chevron) chevron.innerText = isOpen ? "▼" : "▲";
+}
+
+function openNewRecipeFormFromDrawer() {
+  closeSideDrawer();
+  resetAddForm();
+  showFormView();
+}
+
+function showFormView() {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-add').classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function cancelRecipeForm() {
+  resetAddForm();
+  switchTab('recipes', document.getElementById('nav-btn-recipes'));
+}
+
+async function changeUsername() {
+  const currentName = currentProfile?.username || currentUser.email.split("@")[0];
+  const newName = prompt("Inserisci il nuovo nome utente:", currentName);
+  if (!newName || !newName.trim() || newName.trim() === currentName) return;
+
+  const cleanName = newName.trim();
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ username: cleanName })
+    .eq("id", currentUser.id);
+
+  if (error) {
+    showToast("Errore aggiornamento nome");
+  } else {
+    if (currentProfile) currentProfile.username = cleanName;
+    document.getElementById("drawer-username").innerText = cleanName;
+    showToast("Nome utente aggiornato!");
+    await loadRecipesFromCloud();
+  }
+}
+
 async function logoutUser() {
+  closeSideDrawer();
   await supabaseClient.auth.signOut();
   showToast("Disconnesso");
+}
+
+async function deleteUserAccount() {
+  const confirmFirst = confirm(
+    "ATTENZIONE: Stai per eliminare definitivamente il tuo account, le tue ricette e la tua dispensa.\n\nVuoi procedere?"
+  );
+  if (!confirmFirst) return;
+
+  const confirmText = prompt('Per confermare, scrivi ELIMINA in maiuscolo:');
+  if (confirmText !== "ELIMINA") {
+    return showToast("Eliminazione annullata");
+  }
+
+  const { error } = await supabaseClient.rpc("delete_own_account");
+  if (error) {
+    console.error(error);
+    return showToast("Errore eliminazione account. Verifica la funzione SQL su Supabase.", 3500);
+  }
+
+  closeSideDrawer();
+  await supabaseClient.auth.signOut();
+  showToast("Account eliminato definitivamente.", 2500);
 }
 
 /* =========================================================
@@ -164,7 +254,6 @@ async function logoutUser() {
 async function loadUserProfileAndData() {
   if (!currentUser) return;
 
-  // 1. Profilo, dispensa e ingredienti personalizzati
   const { data: profile } = await supabaseClient
     .from("profiles")
     .select("*")
@@ -172,9 +261,13 @@ async function loadUserProfileAndData() {
     .single();
 
   if (profile) {
+    currentProfile = profile;
     pantry = profile.pantry || {};
     customIngredients = profile.custom_ingredients || [];
     INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
+
+    document.getElementById("drawer-username").innerText = profile.username || currentUser.email.split("@")[0];
+    document.getElementById("drawer-email").innerText = profile.email || currentUser.email;
   }
 
   buildPantryUI();
@@ -183,8 +276,6 @@ async function loadUserProfileAndData() {
 }
 
 async function loadRecipesFromCloud() {
-  // Grazie alle policy RLS, questa query restituisce automaticamente
-  // le tue ricette + quelle condivise dagli amici accettati + quelle pubbliche
   const { data, error } = await supabaseClient
     .from("recipes")
     .select("*, profiles(username, email)")
@@ -218,6 +309,7 @@ async function loadRecipesFromCloud() {
    SISTEMA AMICI E RICHIESTE DI CONDIVISIONE
    ========================================================= */
 async function loadFriendships() {
+  if (!currentUser) return;
   const { data, error } = await supabaseClient
     .from("friendships")
     .select(`
@@ -242,49 +334,49 @@ function renderFriendsUI() {
   const pendingBox = document.getElementById("pending-requests-box");
   const pendingList = document.getElementById("pending-requests-list");
   const friendsList = document.getElementById("friends-list");
-  const badge = document.getElementById("friends-badge");
+  const notifDot = document.getElementById("drawer-notif-dot");
+  const countSpan = document.getElementById("drawer-friends-count");
 
-  // Richieste ricevute in attesa di risposta
   const incomingPending = friendships.filter(
     f => f.status === "pending" && f.addressee_id === currentUser.id
   );
 
   if (incomingPending.length > 0) {
     pendingBox.style.display = "block";
-    badge.style.display = "flex";
-    badge.innerText = incomingPending.length;
+    notifDot.style.display = "block";
 
     pendingList.innerHTML = incomingPending.map(req => `
       <div class="friend-row">
-        <div>
+        <div style="min-width: 0;">
           <strong>${req.requester.username}</strong><br>
-          <span style="font-size:0.85rem;">${req.requester.email}</span>
+          <span style="font-size:0.8rem; word-break:break-all;">${req.requester.email}</span>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button type="button" class="btn-timer" style="background:#86efac;" onclick="respondFriendRequest('${req.id}', true)">Accetta</button>
-          <button type="button" class="btn-timer" style="background:#fca5a5;" onclick="respondFriendRequest('${req.id}', false)">Rifiuta</button>
+        <div style="display:flex; gap:4px; flex-shrink: 0;">
+          <button type="button" class="btn-timer" style="background:#86efac; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', true)">✓</button>
+          <button type="button" class="btn-timer" style="background:#fca5a5; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', false)">✕</button>
         </div>
       </div>
     `).join("");
   } else {
     pendingBox.style.display = "none";
-    badge.style.display = "none";
+    notifDot.style.display = "none";
   }
 
-  // Amici confermati
   const accepted = friendships.filter(f => f.status === "accepted");
+  if (countSpan) countSpan.innerText = `(${accepted.length})`;
+
   if (accepted.length === 0) {
-    friendsList.innerHTML = `<p style="margin:0;">Nessun amico ancora. Invita qualcuno tramite email!</p>`;
+    friendsList.innerHTML = `<p style="margin:0; font-size:0.95rem;">Nessun amico salvato.</p>`;
   } else {
     friendsList.innerHTML = accepted.map(f => {
       const friendProfile = f.requester_id === currentUser.id ? f.addressee : f.requester;
       return `
         <div class="friend-row">
-          <div>
+          <div style="min-width: 0;">
             <strong>${friendProfile.username}</strong><br>
-            <span style="font-size:0.85rem;">${friendProfile.email}</span>
+            <span style="font-size:0.8rem; word-break:break-all;">${friendProfile.email}</span>
           </div>
-          <button type="button" class="btn-timer" style="flex:0; background:#fca5a5;" onclick="removeFriend('${f.id}')">Rimuovi</button>
+          <button type="button" class="btn-timer" style="flex:0; background:#fca5a5; padding:6px 8px;" onclick="removeFriend('${f.id}')">✕</button>
         </div>
       `;
     }).join("");
@@ -298,7 +390,6 @@ async function sendFriendRequest() {
   if (!targetEmail) return showToast("Inserisci un'email");
   if (targetEmail === currentUser.email.toLowerCase()) return showToast("Non puoi invitare te stesso!");
 
-  // Cerca l'utente nel database
   const { data: targetProfile, error: findErr } = await supabaseClient
     .from("profiles")
     .select("id, email")
@@ -306,15 +397,14 @@ async function sendFriendRequest() {
     .single();
 
   if (findErr || !targetProfile) {
-    return showToast("Nessun utente registrato con questa email", 2500);
+    return showToast("Nessun utente trovato con questa email", 2500);
   }
 
-  // Controlla se esiste già una relazione
   const alreadyExists = friendships.some(
     f => (f.requester_id === targetProfile.id || f.addressee_id === targetProfile.id)
   );
   if (alreadyExists) {
-    return showToast("Richiesta già inviata o utente già tra gli amici");
+    return showToast("Richiesta già inviata o già amici");
   }
 
   const { error } = await supabaseClient
@@ -329,7 +419,7 @@ async function sendFriendRequest() {
     showToast("Errore invio richiesta");
   } else {
     input.value = "";
-    showToast("Richiesta di amicizia inviata!");
+    showToast("Richiesta inviata!");
     await loadFriendships();
   }
 }
@@ -340,7 +430,7 @@ async function respondFriendRequest(friendshipId, accept) {
       .from("friendships")
       .update({ status: "accepted" })
       .eq("id", friendshipId);
-    showToast("Amicizia accettata! Ora vedete le rispettive ricette.");
+    showToast("Amicizia accettata!");
   } else {
     await supabaseClient
       .from("friendships")
@@ -353,7 +443,7 @@ async function respondFriendRequest(friendshipId, accept) {
 }
 
 async function removeFriend(friendshipId) {
-  if (!confirm("Vuoi rimuovere questo amico dalla tua lista?")) return;
+  if (!confirm("Rimuovere questo amico?")) return;
   await supabaseClient.from("friendships").delete().eq("id", friendshipId);
   showToast("Amico rimosso");
   await loadFriendships();
@@ -372,7 +462,6 @@ function switchTab(tabId, btn) {
   if (btn) btn.classList.add('active');
 
   if (tabId === 'recipes') renderRecipes();
-  if (tabId === 'friends') loadFriendships();
   if (tabId !== 'add' && editingRecipeId !== null) resetAddForm();
 
   window.scrollTo(0, 0);
@@ -649,7 +738,7 @@ async function saveNewRecipe() {
   saveBtn.disabled = false;
   resetAddForm();
   await loadRecipesFromCloud();
-  switchTab('recipes', document.querySelectorAll('nav button')[0]);
+  switchTab('recipes', document.getElementById('nav-btn-recipes'));
 }
 
 function editRecipe(recipeId) {
@@ -681,7 +770,7 @@ function editRecipe(recipeId) {
   document.querySelector("#view-add .page-title").innerText = "Modifica Ricetta";
   document.getElementById("save-recipe-btn").innerText = "Aggiorna";
 
-  switchTab('add', document.querySelectorAll('nav button')[2]);
+  showFormView();
 }
 
 async function deleteRecipe(recipeId) {
@@ -893,7 +982,6 @@ function renderModalContent() {
     </div>
   ` : '';
 
-  // Mostra i pulsanti Modifica/Elimina solo al proprietario della ricetta
   const ownerActionsHtml = isMine ? `
     <div class="modal-actions">
       <button type="button" class="btn-action btn-edit" onclick="editRecipe('${r.id}')">✏️ Modifica</button>
