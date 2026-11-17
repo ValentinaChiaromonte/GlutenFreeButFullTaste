@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Senza glutine ma buono</title>
 
-  <!-- iOS / Mobile Standalone Meta -->
+  <!-- PWA / Mobile Standalone Meta -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#F9EBE0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -19,7 +21,7 @@
   <!-- Supabase JS SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
@@ -78,24 +80,24 @@
   <div id="app-main" style="display: none;">
     <div class="container">
       
-      <!-- VISTA 1: LE MIE RICETTE (Create + Salvate da Esplora) -->
+      <!-- VISTA 1: IL MIO RICETTARIO -->
       <section id="view-recipes" class="tab-content active">
         <h3 class="page-title">Il mio Ricettario</h3>
         <div class="controls-container">
           <div class="form-group" style="margin-bottom: 10px;">
-            <input type="text" id="search-keyword" placeholder="Cerca nelle tue ricette...">
+            <input type="text" id="search-keyword" oninput="renderRecipes()" placeholder="Cerca nelle tue ricette...">
           </div>
 
           <div class="filter-toggle">
             <span>In base alle mie scorte</span>
             <label class="switch">
-              <input type="checkbox" id="toggle-doable">
+              <input type="checkbox" id="toggle-doable" onchange="renderRecipes()">
               <span class="slider"></span>
             </label>
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-origin">
+            <select id="filter-origin" onchange="renderRecipes()">
               <option value="all">Tutte (Create da me + Salvate)</option>
               <option value="mine">Solo create da me</option>
               <option value="saved">Solo salvate dagli amici/community</option>
@@ -103,43 +105,49 @@
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-macro" onchange="updateFilterSubcatOptions('filter')">
+            <select id="filter-macro" onchange="updateFilterSubcatOptions('filter'); renderRecipes()">
               <option value="tutti">Tutto (Dolci & Salati)</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
             </select>
           </div>
 
-          <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 12px;">
-            <select id="filter-subcat">
+          <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 8px;">
+            <select id="filter-subcat" onchange="renderRecipes()">
               <option value="tutti">Tutte le sottocategorie</option>
             </select>
           </div>
 
-          <button type="button" class="btn-main" onclick="renderRecipes()" style="margin-top: 6px;">🔍 Cerca</button>
+          <div class="form-group" style="margin-bottom: 4px;">
+            <select id="filter-sort" onchange="renderRecipes()">
+              <option value="newest">Ordina: Più recenti</option>
+              <option value="rating">Ordina: Valutazione (★★★★★ → ★)</option>
+              <option value="alpha">Ordina: Alfabetico (A → Z)</option>
+            </select>
+          </div>
         </div>
 
         <div id="recipe-list"></div>
       </section>
 
-      <!-- VISTA 2 (CENTRALE): ESPLORA (Ricette di Amici & Community) -->
+      <!-- VISTA 2 (CENTRALE): ESPLORA -->
       <section id="view-explore" class="tab-content">
         <h3 class="page-title">Esplora Community</h3>
         <div class="controls-container">
           <div class="form-group" style="margin-bottom: 10px;">
-            <input type="text" id="explore-keyword" placeholder="Cerca ricetta, ingrediente o autore...">
+            <input type="text" id="explore-keyword" oninput="renderExploreRecipes()" placeholder="Cerca ricetta, ingrediente o autore...">
           </div>
 
           <div class="filter-toggle">
             <span>In base alle mie scorte</span>
             <label class="switch">
-              <input type="checkbox" id="explore-toggle-doable">
+              <input type="checkbox" id="explore-toggle-doable" onchange="renderExploreRecipes()">
               <span class="slider"></span>
             </label>
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="explore-scope">
+            <select id="explore-scope" onchange="renderExploreRecipes()">
               <option value="all">Tutte (Amici + Pubbliche)</option>
               <option value="friends">Solo degli amici</option>
               <option value="public">Solo pubbliche</option>
@@ -147,20 +155,26 @@
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
-            <select id="explore-macro" onchange="updateFilterSubcatOptions('explore')">
+            <select id="explore-macro" onchange="updateFilterSubcatOptions('explore'); renderExploreRecipes()">
               <option value="tutti">Tutto (Dolci & Salati)</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
             </select>
           </div>
 
-          <div class="form-group" id="explore-subcat-container" style="display: none; margin-bottom: 12px;">
-            <select id="explore-subcat">
+          <div class="form-group" id="explore-subcat-container" style="display: none; margin-bottom: 8px;">
+            <select id="explore-subcat" onchange="renderExploreRecipes()">
               <option value="tutti">Tutte le sottocategorie</option>
             </select>
           </div>
 
-          <button type="button" class="btn-main" onclick="renderExploreRecipes()" style="margin-top: 6px;">🧭 Esplora</button>
+          <div class="form-group" style="margin-bottom: 4px;">
+            <select id="explore-sort" onchange="renderExploreRecipes()">
+              <option value="newest">Ordina: Più recenti</option>
+              <option value="rating">Ordina: Valutazione (★★★★★ → ★)</option>
+              <option value="alpha">Ordina: Alfabetico (A → Z)</option>
+            </select>
+          </div>
         </div>
 
         <div id="explore-list"></div>
@@ -314,7 +328,7 @@
       </div>
     </div>
 
-    <!-- BARRA NAVIGAZIONE INFERIORE A 3 PAGINE (RICETTE • ESPLORA • DISPENSA) -->
+    <!-- BARRA NAVIGAZIONE INFERIORE A 3 PAGINE -->
     <nav>
       <button type="button" id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
         <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
@@ -334,6 +348,6 @@
   <!-- CARICAMENTO MODULARE DEI FILE JS -->
   <script src="js/config.js?v=2"></script>
   <script src="js/auth.js?v=4"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

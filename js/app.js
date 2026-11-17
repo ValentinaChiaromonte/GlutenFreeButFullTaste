@@ -1,5 +1,5 @@
 // =========================================================
-// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE E TIMER
+// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE, STORAGE E TIMER
 // =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
@@ -56,7 +56,6 @@ async function loadUserProfileAndData() {
 }
 
 async function loadRecipesFromCloud() {
-  // 1. Carica tutte le ricette accessibili (mie, amici, pubbliche)
   const { data, error } = await supabaseClient
     .from("recipes")
     .select("*, profiles(username, email)")
@@ -67,7 +66,6 @@ async function loadRecipesFromCloud() {
     return showToast("Errore caricamento ricette");
   }
 
-  // 2. Carica le ricette salvate dall'utente con le rispettive valutazioni personali
   const { data: savedData } = await supabaseClient
     .from("saved_recipes")
     .select("recipe_id, rating")
@@ -88,6 +86,7 @@ async function loadRecipesFromCloud() {
       userId: r.user_id,
       isMine,
       isSaved,
+      createdAt: r.created_at,
       authorName: r.profiles?.username || r.profiles?.email?.split("@")[0] || "Utente",
       title: r.title,
       macro: r.macro,
@@ -199,6 +198,57 @@ function showFormView() {
 function cancelRecipeForm() {
   resetAddForm();
   switchTab('recipes', document.getElementById('nav-btn-recipes'));
+}
+
+/* --- SUPABASE STORAGE PER FOTO --- */
+function compressImageToBlob(file) {
+  return new Promise((resolve) => {
+    if (!file) return resolve(null);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 800;
+        const scale = MAX_WIDTH / img.width;
+        canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+        canvas.height = (img.width > MAX_WIDTH) ? (img.height * scale) : img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.78);
+      };
+      img.onerror = () => resolve(null);
+    };
+    reader.onerror = () => resolve(null);
+  });
+}
+
+async function uploadPhotoToStorage(file) {
+  const blob = await compressImageToBlob(file);
+  if (!blob) return null;
+
+  const filePath = `${currentUser.id}/${Date.now()}.jpg`;
+  const { error } = await supabaseClient.storage
+    .from("recipe-photos")
+    .upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
+
+  if (error) {
+    console.error("Storage upload error:", error);
+    return null;
+  }
+
+  const { data } = supabaseClient.storage.from("recipe-photos").getPublicUrl(filePath);
+  return data?.publicUrl || null;
+}
+
+async function deletePhotoFromStorage(photoUrl) {
+  if (!photoUrl || !photoUrl.includes("/recipe-photos/")) return;
+  const parts = photoUrl.split("/recipe-photos/");
+  if (parts.length === 2) {
+    await supabaseClient.storage.from("recipe-photos").remove([parts[1]]);
+  }
 }
 
 /* --- FORM RICETTA & INGREDIENTI --- */
@@ -357,30 +407,6 @@ function addIngredientField(presetId = null, presetAmount = "") {
   container.appendChild(row);
 }
 
-function compressImage(file) {
-  return new Promise((resolve) => {
-    if (!file) return resolve(null);
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (e) => {
-      const img = new Image();
-      img.src = e.target.result;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 600;
-        const scale = MAX_WIDTH / img.width;
-        canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
-        canvas.height = (img.width > MAX_WIDTH) ? (img.height * scale) : img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.65));
-      };
-      img.onerror = () => resolve(null);
-    };
-    reader.onerror = () => resolve(null);
-  });
-}
-
 function resetAddForm() {
   editingRecipeId = null;
   document.getElementById("rec-title").value = "";
@@ -431,12 +457,16 @@ async function saveNewRecipe() {
   saveBtn.innerText = "Salvataggio nel cloud...";
   saveBtn.disabled = true;
 
-  let photoBase64 = null;
+  let photoUrl = null;
+  const existing = editingRecipeId !== null ? recipes.find(r => r.id === editingRecipeId) : null;
+
   if (photoFile) {
-    photoBase64 = await compressImage(photoFile);
-  } else if (editingRecipeId !== null) {
-    const existing = recipes.find(r => r.id === editingRecipeId);
-    if (existing) photoBase64 = existing.photo;
+    photoUrl = await uploadPhotoToStorage(photoFile);
+    if (photoUrl && existing?.photo) {
+      await deletePhotoFromStorage(existing.photo);
+    }
+  } else if (existing) {
+    photoUrl = existing.photo;
   }
 
   const payload = {
@@ -448,7 +478,7 @@ async function saveNewRecipe() {
     timer_minutes: timerMinutes,
     rating,
     procedure,
-    photo: photoBase64,
+    photo: photoUrl,
     ingredients,
     visibility
   };
@@ -506,6 +536,7 @@ async function deleteRecipe(recipeId) {
   if (!r || !r.isMine) return;
 
   if (confirm(`Vuoi eliminare "${r.title}"?`)) {
+    if (r.photo) await deletePhotoFromStorage(r.photo);
     await supabaseClient.from("recipes").delete().eq("id", recipeId);
     closeRecipeModal();
     await loadRecipesFromCloud();
@@ -513,7 +544,7 @@ async function deleteRecipe(recipeId) {
   }
 }
 
-/* --- DISPENSA --- */
+/* --- DISPENSA & SCALA AUTOMATICA --- */
 function buildPantryUI() {
   const c = document.getElementById("pantry-inputs");
   if (!c) return;
@@ -552,17 +583,107 @@ async function savePantry() {
   else showToast("Dispensa sincronizzata!");
 }
 
-function isRecipeDoable(recipe) {
+function isRecipeDoable(recipe, targetServings = null) {
   if (!recipe.ingredients || recipe.ingredients.length === 0) return true;
+  const baseServings = recipe.servings || 1;
+  const ratio = targetServings ? (targetServings / baseServings) : 1;
+
   return recipe.ingredients.every(item => {
     const info = INGREDIENTS_DB.find(i => i.id === item.id);
     if (info && info.staple) return true;
+    const required = Math.round(item.amount * ratio * 10) / 10;
     const available = pantry[item.id] || 0;
-    return available >= item.amount;
+    return available >= required;
   });
 }
 
-/* --- RENDER SCHEDE (RICETTARIO PERSONALE + ESPLORA) --- */
+function getMissingIngredients(recipe, targetServings) {
+  const missing = [];
+  const baseServings = recipe.servings || 1;
+  const ratio = targetServings / baseServings;
+
+  (recipe.ingredients || []).forEach(item => {
+    const info = INGREDIENTS_DB.find(i => i.id === item.id);
+    if (info && info.staple) return;
+
+    const required = Math.round(item.amount * ratio * 10) / 10;
+    const available = pantry[item.id] || 0;
+    if (available < required) {
+      const diff = Math.round((required - available) * 10) / 10;
+      missing.push({
+        name: info ? info.name : item.id,
+        missingAmount: diff,
+        unit: info ? info.unit : ""
+      });
+    }
+  });
+  return missing;
+}
+
+async function markRecipeAsCooked() {
+  const r = currentOpenRecipe;
+  if (!r || !r.ingredients || r.ingredients.length === 0) return;
+
+  if (!confirm(`Scalare dalla dispensa gli ingredienti per ${currentModalServings} porzioni di "${r.title}"?`)) {
+    return;
+  }
+
+  const baseServings = r.servings || 1;
+  const ratio = currentModalServings / baseServings;
+
+  r.ingredients.forEach(item => {
+    const info = INGREDIENTS_DB.find(i => i.id === item.id);
+    if (info && info.staple) return;
+
+    const used = Math.round(item.amount * ratio * 10) / 10;
+    const currentAvail = pantry[item.id] || 0;
+    pantry[item.id] = Math.max(0, Math.round((currentAvail - used) * 10) / 10);
+  });
+
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ pantry })
+    .eq("id", currentUser.id);
+
+  if (error) {
+    showToast("Errore aggiornamento dispensa");
+  } else {
+    buildPantryUI();
+    renderRecipes();
+    renderExploreRecipes();
+    renderModalContent();
+    showToast("Dispensa aggiornata! Buon appetito!");
+  }
+}
+
+async function copyShoppingListToClipboard() {
+  if (!currentOpenRecipe) return;
+  const missing = getMissingIngredients(currentOpenRecipe, currentModalServings);
+  if (missing.length === 0) return;
+
+  const lines = missing.map(m => `- ${m.name}: ${m.missingAmount} ${m.unit}`);
+  const text = `Lista spesa per "${currentOpenRecipe.title}" (${currentModalServings} porz.):\n${lines.join("\n")}`;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Lista della spesa copiata!");
+  } catch (e) {
+    showToast("Impossibile copiare automaticamente");
+  }
+}
+
+/* --- ORDINAMENTO E RENDER SCHEDE --- */
+function sortRecipeList(list, sortMode) {
+  const copy = [...list];
+  if (sortMode === "rating") {
+    copy.sort((a, b) => (b.rating || 5) - (a.rating || 5));
+  } else if (sortMode === "alpha") {
+    copy.sort((a, b) => a.title.localeCompare(b.title, 'it', { sensitivity: 'base' }));
+  }
+  // "newest" mantiene già l'ordine cronologico decrescente di Supabase
+  return copy;
+}
+
 function createRecipeCardElement(r, showSavedBadge = false) {
   const doable = isRecipeDoable(r);
   const card = document.createElement("div");
@@ -575,7 +696,7 @@ function createRecipeCardElement(r, showSavedBadge = false) {
   });
 
   const imgHtml = r.photo
-    ? `<img src="${r.photo}" class="recipe-img">`
+    ? `<img src="${r.photo}" class="recipe-img" loading="lazy">`
     : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2rem;">🍽️</div>`;
 
   const displayRating = r.rating || 5;
@@ -604,7 +725,6 @@ function createRecipeCardElement(r, showSavedBadge = false) {
   return card;
 }
 
-// 1. Pagina Principale: IL MIO RICETTARIO (Create da me + Salvate da Esplora)
 function renderRecipes() {
   const list = document.getElementById("recipe-list");
   if (!list) return;
@@ -615,11 +735,10 @@ function renderRecipes() {
   const originFilter = document.getElementById("filter-origin")?.value || "all";
   const macroFilter = document.getElementById("filter-macro")?.value || "tutti";
   const subcatFilter = document.getElementById("filter-subcat")?.value || "tutti";
+  const sortMode = document.getElementById("filter-sort")?.value || "newest";
 
-  const filtered = recipes.filter(r => {
-    // Nel ricettario principale compaiono solo le ricette create da me o salvate da Esplora
+  let filtered = recipes.filter(r => {
     if (!r.isMine && !r.isSaved) return false;
-
     if (originFilter === "mine" && !r.isMine) return false;
     if (originFilter === "saved" && !r.isSaved) return false;
 
@@ -642,15 +761,16 @@ function renderRecipes() {
     return true;
   });
 
+  filtered = sortRecipeList(filtered, sortMode);
+
   if (filtered.length === 0) {
-    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta salvata. Scopri nuove idee nella scheda Esplora!</p>`;
+    list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata. Scopri nuove idee nella scheda Esplora!</p>`;
     return;
   }
 
   filtered.forEach(r => list.appendChild(createRecipeCardElement(r, false)));
 }
 
-// 2. Pagina Centrale: ESPLORA (Ricette di Amici & Community)
 function renderExploreRecipes() {
   const list = document.getElementById("explore-list");
   if (!list) return;
@@ -661,11 +781,10 @@ function renderExploreRecipes() {
   const scopeFilter = document.getElementById("explore-scope")?.value || "all";
   const macroFilter = document.getElementById("explore-macro")?.value || "tutti";
   const subcatFilter = document.getElementById("explore-subcat")?.value || "tutti";
+  const sortMode = document.getElementById("explore-sort")?.value || "newest";
 
-  const filtered = recipes.filter(r => {
-    // Esclude le proprie ricette
+  let filtered = recipes.filter(r => {
     if (r.isMine) return false;
-
     if (scopeFilter === "friends" && r.visibility !== "friends") return false;
     if (scopeFilter === "public" && r.visibility !== "public") return false;
 
@@ -687,6 +806,8 @@ function renderExploreRecipes() {
 
     return true;
   });
+
+  filtered = sortRecipeList(filtered, sortMode);
 
   if (filtered.length === 0) {
     list.innerHTML = `<p style="text-align:center; margin-top:24px; font-size:1.1rem; font-weight:700;">Nessuna ricetta trovata nella community.</p>`;
@@ -728,7 +849,8 @@ function renderModalContent() {
   const r = currentOpenRecipe;
   if (!r) return;
 
-  const doable = isRecipeDoable(r);
+  const doable = isRecipeDoable(r, currentModalServings);
+  const missingItems = getMissingIngredients(r, currentModalServings);
   const body = document.getElementById("modal-body");
   if (!body) return;
 
@@ -747,7 +869,6 @@ function renderModalContent() {
     ? `<img src="${r.photo}" class="modal-img">`
     : `<div class="modal-img" style="display:flex;align-items:center;justify-content:center;font-size:3rem;">🍽️</div>`;
 
-  // Se la ricetta è mia o salvata, le stelle sono interattive per cambiare la propria valutazione
   const canRate = r.isMine || r.isSaved;
   const currentRating = r.rating || 5;
   let ratingHtml = "";
@@ -767,6 +888,25 @@ function renderModalContent() {
     ratingHtml = `<div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(currentRating)}${"☆".repeat(5 - currentRating)}</div>`;
   }
 
+  // Lista della spesa automatica se mancano ingredienti per le porzioni selezionate
+  const missingHtml = missingItems.length > 0 ? `
+    <div class="missing-box">
+      <div class="missing-box-header">
+        <span>🛒 Ti mancano in dispensa:</span>
+        <button type="button" class="btn-copy-shopping" onclick="copyShoppingListToClipboard()">📋 Copia lista</button>
+      </div>
+      <div style="font-size: 0.95rem;">
+        ${missingItems.map(m => `• ${m.name}: <strong>${m.missingAmount} ${m.unit}</strong>`).join("<br>")}
+      </div>
+    </div>
+  ` : "";
+
+  const cookedBtnHtml = (r.ingredients && r.ingredients.length > 0) ? `
+    <button type="button" class="btn-cooked" onclick="markRecipeAsCooked()">
+      🍳 Ho cucinato questa ricetta (Scala dispensa)
+    </button>
+  ` : "";
+
   const timerHtml = r.timerMinutes ? `
     <div class="kitchen-timer-box">
       <div style="font-size: 1rem; color: var(--c-cream);">⏱️ Timer di Cottura</div>
@@ -779,7 +919,6 @@ function renderModalContent() {
     </div>
   ` : '';
 
-  // Pulsanti azione: Modifica/Elimina se mia; Salva/Rimuovi dai salvati se di altri utenti
   let actionsHtml = "";
   if (r.isMine) {
     actionsHtml = `
@@ -818,12 +957,15 @@ function renderModalContent() {
         <button type="button" class="btn-portion" onclick="adjustServings(1)">+</button>
       </div>
     </div>
-    <div style="margin-bottom: 14px;">${ingredientsListHtml.length > 0 ? ingredientsListHtml : '<p>Nessun ingrediente inserito.</p>'}</div>
+    <div style="margin-bottom: 10px;">${ingredientsListHtml.length > 0 ? ingredientsListHtml : '<p>Nessun ingrediente inserito.</p>'}</div>
+
+    ${missingHtml}
 
     <div class="modal-section-title">Procedimento</div>
     <div class="modal-procedure-text">${r.procedure ? r.procedure : 'Nessun procedimento inserito.'}</div>
 
     ${timerHtml}
+    ${cookedBtnHtml}
     ${actionsHtml}
   `;
 }
