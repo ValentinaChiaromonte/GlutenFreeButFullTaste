@@ -22,8 +22,12 @@ window.onload = async () => {
   const { data: { session } } = await supabaseClient.auth.getSession();
   handleSessionChange(session);
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
     handleSessionChange(session);
+    if (event === "PASSWORD_RECOVERY") {
+      const resetModal = document.getElementById("reset-password-modal");
+      if (resetModal) resetModal.classList.add("open");
+    }
   });
 };
 

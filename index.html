@@ -47,9 +47,26 @@
         <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
       </div>
       <button type="button" class="btn-main" id="auth-submit-btn" onclick="handleAuthSubmit()">Accedi</button>
+      
+      <button type="button" id="forgot-password-btn" onclick="handleForgotPassword()" style="background: none; border: none; width: 100%; margin-top: 12px; font-size: 1rem; text-decoration: underline; cursor: pointer;">
+        Password dimenticata?
+      </button>
+
       <button type="button" class="btn-main" id="auth-toggle-btn" onclick="toggleAuthMode()" style="background: var(--c-sky-blue); font-size: 1.05rem;">
         Non hai un account? Registrati
       </button>
+    </div>
+  </div>
+
+  <!-- MODALE NUOVA PASSWORD (Si apre cliccando sul link nell'email) -->
+  <div id="reset-password-modal" class="modal-overlay">
+    <div class="modal-content">
+      <h3 class="modal-title" style="text-align: center; margin-bottom: 14px;">Nuova Password</h3>
+      <div class="form-group">
+        <label>Inserisci la nuova password (min. 6 caratteri)</label>
+        <input type="password" id="new-password-input" placeholder="••••••••">
+      </div>
+      <button type="button" class="btn-main" onclick="updateNewPassword()">Salva Password</button>
     </div>
   </div>
 

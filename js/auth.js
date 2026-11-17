@@ -1,5 +1,5 @@
 // =========================================================
-// AUTENTICAZIONE, PANNELLO LATERALE E GESTIONE AMICI
+// AUTENTICAZIONE, RECUPERO PASSWORD, PANNELLO LATERALE E AMICI
 // =========================================================
 let isSignUpMode = false;
 
@@ -10,6 +10,9 @@ function toggleAuthMode() {
   document.getElementById("auth-toggle-btn").innerText = isSignUpMode
     ? "Hai già un account? Accedi"
     : "Non hai un account? Registrati";
+
+  const forgotBtn = document.getElementById("forgot-password-btn");
+  if (forgotBtn) forgotBtn.style.display = isSignUpMode ? "none" : "block";
 }
 
 async function handleAuthSubmit() {
@@ -35,6 +38,40 @@ async function handleAuthSubmit() {
 
   btn.disabled = false;
   btn.innerText = isSignUpMode ? "Registrati" : "Accedi";
+}
+
+async function handleForgotPassword() {
+  const email = document.getElementById("auth-email").value.trim().toLowerCase();
+  if (!email) {
+    return showToast("Inserisci prima la tua email nel campo qui sopra!", 2500);
+  }
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+
+  if (error) {
+    showToast("Errore: " + error.message, 3000);
+  } else {
+    showToast("Email inviata! Controlla la tua casella di posta.", 3500);
+  }
+}
+
+async function updateNewPassword() {
+  const newPassword = document.getElementById("new-password-input").value;
+  if (!newPassword || newPassword.length < 6) {
+    return showToast("La password deve avere almeno 6 caratteri");
+  }
+
+  const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+  if (error) {
+    showToast("Errore aggiornamento: " + error.message, 3000);
+  } else {
+    document.getElementById("new-password-input").value = "";
+    const resetModal = document.getElementById("reset-password-modal");
+    if (resetModal) resetModal.classList.remove("open");
+    showToast("Password aggiornata con successo!", 2500);
+  }
 }
 
 async function handleSessionChange(session) {
