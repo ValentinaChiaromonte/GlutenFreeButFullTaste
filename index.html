@@ -82,7 +82,6 @@
       
       <!-- VISTA 1: IL MIO RICETTARIO -->
       <section id="view-recipes" class="tab-content active">
-        <h3 class="page-title">Il mio Ricettario</h3>
         <div class="controls-container">
           <div class="form-group" style="margin-bottom: 10px;">
             <input type="text" id="search-keyword" oninput="renderRecipes()" placeholder="Cerca nelle tue ricette...">
@@ -98,15 +97,15 @@
 
           <div class="form-group" style="margin-bottom: 8px;">
             <select id="filter-origin" onchange="renderRecipes()">
-              <option value="all">Tutte (Create da me + Salvate)</option>
+              <option value="all">Tutte (create da me + salvate)</option>
               <option value="mine">Solo create da me</option>
-              <option value="saved">Solo salvate dagli amici/community</option>
+              <option value="saved">Solo salvate da amici/community</option>
             </select>
           </div>
 
           <div class="form-group" style="margin-bottom: 8px;">
             <select id="filter-macro" onchange="updateFilterSubcatOptions('filter'); renderRecipes()">
-              <option value="tutti">Tutto (Dolci & Salati)</option>
+              <option value="tutti">Tutto (dolci & salati)</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
             </select>
@@ -120,9 +119,9 @@
 
           <div class="form-group" style="margin-bottom: 4px;">
             <select id="filter-sort" onchange="renderRecipes()">
-              <option value="newest">Ordina: Più recenti</option>
-              <option value="rating">Ordina: Valutazione (★★★★★ → ★)</option>
-              <option value="alpha">Ordina: Alfabetico (A → Z)</option>
+              <option value="newest">più recenti</option>
+              <option value="rating">valutazione</option>
+              <option value="alpha">alfabetico</option>
             </select>
           </div>
         </div>
@@ -148,7 +147,7 @@
 
           <div class="form-group" style="margin-bottom: 8px;">
             <select id="explore-scope" onchange="renderExploreRecipes()">
-              <option value="all">Tutte (Amici + Pubbliche)</option>
+              <option value="all">Tutte (amici + pubbliche)</option>
               <option value="friends">Solo degli amici</option>
               <option value="public">Solo pubbliche</option>
             </select>
@@ -156,7 +155,7 @@
 
           <div class="form-group" style="margin-bottom: 8px;">
             <select id="explore-macro" onchange="updateFilterSubcatOptions('explore'); renderExploreRecipes()">
-              <option value="tutti">Tutto (Dolci & Salati)</option>
+              <option value="tutti">Tutto (dolci & salati)</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
             </select>
@@ -170,9 +169,9 @@
 
           <div class="form-group" style="margin-bottom: 4px;">
             <select id="explore-sort" onchange="renderExploreRecipes()">
-              <option value="newest">Ordina: Più recenti</option>
-              <option value="rating">Ordina: Valutazione (★★★★★ → ★)</option>
-              <option value="alpha">Ordina: Alfabetico (A → Z)</option>
+              <option value="newest">più recenti</option>
+              <option value="rating">valutazione</option>
+              <option value="alpha">alfabetico</option>
             </select>
           </div>
         </div>
@@ -200,14 +199,10 @@
             <input type="text" id="pantry-search" oninput="buildPantryUI()" placeholder="Filtra ingrediente in dispensa...">
           </div>
 
-          <p id="pantry-mode-hint" style="font-size: 0.95rem; margin-top: 0; margin-bottom: 12px; background: rgba(249,235,224,0.85); padding: 8px 12px; border-radius: 12px;">
-            Inserisci solo le quantità comprate al supermercato: verranno <strong>sommate</strong> a ciò che hai già in casa.
-          </p>
-
           <div id="pantry-inputs"></div>
 
           <button type="button" class="btn-main" id="pantry-save-btn" onclick="savePantry()">
-            Aggiungi Spesa alla Dispensa
+            Aggiungi spesa alla dispensa
           </button>
         </div>
       </section>
@@ -216,7 +211,7 @@
       <section id="view-add" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <button type="button" class="btn-add-ing" style="margin-top: 0;" onclick="cancelRecipeForm()">← Indietro</button>
-          <h3 class="page-title" style="margin: 0;">Nuova Ricetta</h3>
+          <h3 class="page-title" style="margin: 0;">Nuova ricetta</h3>
           <div style="width: 75px;"></div>
         </div>
 
@@ -229,8 +224,8 @@
           <div class="form-group">
             <label>Chi può vedere questa ricetta?</label>
             <select id="rec-visibility">
-              <option value="friends">👥 Condivisa con i miei amici</option>
               <option value="private">🔒 Solo io (Privata)</option>
+              <option value="friends">👥 Condivisa con i miei amici</option>
               <option value="public">🌍 Pubblica (Tutta la community)</option>
             </select>
           </div>
@@ -284,7 +279,7 @@
           </div>
           
           <div class="form-group">
-            <label>Timer cottura in minuti (lascia vuoto se non serve)</label>
+            <label>Timer cottura in minuti <br> (lascia vuoto se non serve)</label>
             <input type="number" id="rec-timer-min" min="1" max="360" placeholder="Es. 25">
           </div>
 
@@ -313,7 +308,7 @@
 
         <div class="drawer-accordion">
           <button type="button" class="drawer-accordion-toggle" onclick="toggleFriendsDrawerSection()">
-            <span>👥 I miei Amici <span id="drawer-friends-count"></span></span>
+            <span>👥 Amici <span id="drawer-friends-count"></span></span>
             <span id="friends-chevron">▼</span>
           </button>
 
@@ -329,7 +324,7 @@
             </div>
 
             <div id="friends-list">
-              <p style="margin: 0; font-size: 0.95rem;">Nessun amico ancora.</p>
+              <p style="margin: 0; font-size: 0.95rem;">Nessun amico ancora</p>
             </div>
           </div>
         </div>
