@@ -56,16 +56,32 @@ async function loadUserProfileAndData() {
 }
 
 async function loadRecipesFromCloud() {
+  // 1. Carica le ricette visibili all'utente
   const { data, error } = await supabaseClient
     .from("recipes")
-    .select("*, profiles(username, email)")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error(error);
-    return showToast("Errore caricamento ricette");
+    console.error("Errore Supabase recipes:", error);
+    return showToast("Errore caricamento ricette: " + error.message, 3500);
   }
 
+  // 2. Carica i profili degli autori per mostrare i nomi utente
+  const userIds = [...new Set((data || []).map(r => r.user_id).filter(Boolean))];
+  let profilesMap = {};
+  if (userIds.length > 0) {
+    const { data: profilesData } = await supabaseClient
+      .from("profiles")
+      .select("id, username, email")
+      .in("id", userIds);
+
+    (profilesData || []).forEach(p => {
+      profilesMap[p.id] = p;
+    });
+  }
+
+  // 3. Carica le ricette salvate dall'utente con le rispettive valutazioni
   const { data: savedData } = await supabaseClient
     .from("saved_recipes")
     .select("recipe_id, rating")
@@ -80,6 +96,7 @@ async function loadRecipesFromCloud() {
     const isMine = r.user_id === currentUser.id;
     const isSaved = Object.prototype.hasOwnProperty.call(savedRecipesMap, r.id);
     const effectiveRating = isSaved ? savedRecipesMap[r.id] : (r.rating || 5);
+    const authorProfile = profilesMap[r.user_id];
 
     return {
       id: r.id,
@@ -87,7 +104,7 @@ async function loadRecipesFromCloud() {
       isMine,
       isSaved,
       createdAt: r.created_at,
-      authorName: r.profiles?.username || r.profiles?.email?.split("@")[0] || "Utente",
+      authorName: authorProfile?.username || authorProfile?.email?.split("@")[0] || "Utente",
       title: r.title,
       macro: r.macro,
       subcat: r.subcat,
