@@ -30,7 +30,7 @@
     <div class="header-inner">
       <div class="app-title">Senza glutine ma buono</div>
       <button type="button" id="open-drawer-btn" class="drawer-trigger-btn" onclick="openSideDrawer()" style="display: none;" aria-label="Menu Profilo">
-        <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+        <span id="drawer-avatar-initial" style="font-size: 1.35rem; line-height: 1;">U</span>
         <span id="drawer-notif-dot" class="notif-dot" style="display: none;"></span>
       </button>
     </div>
@@ -183,15 +183,15 @@
       <!-- VISTA 3: DISPENSA DINAMICA -->
       <section id="view-pantry" class="tab-content">
         <h3 class="page-title">Cosa offre la casa?</h3>
-        <p class="info">La tua dispensa si aggiorna in automatico quando cucini una ricetta. <br> Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono sempre disponibili.</p>
+        <p class="info">Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono sempre disponibili.</p>
 
-        <!-- Selettore Modalità Dispensa -->
+        <!-- Selettore Modalità Dispensa (Sinistra: Scorte Attuali | Destra: Aggiungi Spesa) -->
         <div class="pantry-mode-switch">
-          <button type="button" id="pantry-mode-restock-btn" class="pantry-mode-btn active" onclick="setPantryMode('restock')">
-            🛒 Aggiungi Spesa
-          </button>
           <button type="button" id="pantry-mode-edit-btn" class="pantry-mode-btn" onclick="setPantryMode('edit')">
-            ✏️ Scorte Attuali
+            Scorte Attuali
+          </button>
+          <button type="button" id="pantry-mode-restock-btn" class="pantry-mode-btn active" onclick="setPantryMode('restock')">
+            Aggiungi Spesa
           </button>
         </div>
 
@@ -207,7 +207,7 @@
           <div id="pantry-inputs"></div>
 
           <button type="button" class="btn-main" id="pantry-save-btn" onclick="savePantry()">
-            ➕ Aggiungi Spesa alla Dispensa
+            Aggiungi Spesa alla Dispensa
           </button>
         </div>
       </section>

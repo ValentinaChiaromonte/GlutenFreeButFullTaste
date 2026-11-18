@@ -178,8 +178,16 @@ async function changeUsername() {
   } else {
     if (currentProfile) currentProfile.username = cleanName;
     document.getElementById("drawer-username").innerText = cleanName;
+    updateHeaderAvatarInitial(cleanName);
     showToast("Nome utente aggiornato!");
     await loadRecipesFromCloud();
+  }
+
+  function updateHeaderAvatarInitial(username) {
+  const initialEl = document.getElementById("drawer-avatar-initial");
+  if (initialEl && username) {
+    initialEl.innerText = username.trim().charAt(0).toUpperCase();
+  }
   }
 }
 

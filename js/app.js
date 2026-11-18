@@ -1,6 +1,3 @@
-// =========================================================
-// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE, STORAGE E TIMER
-// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
@@ -46,8 +43,12 @@ async function loadUserProfileAndData() {
     customIngredients = profile.custom_ingredients || [];
     INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
-    document.getElementById("drawer-username").innerText = profile.username || currentUser.email.split("@")[0];
+    const displayUsername = profile.username || currentUser.email.split("@")[0];
+    document.getElementById("drawer-username").innerText = displayUsername;
     document.getElementById("drawer-email").innerText = profile.email || currentUser.email;
+    if (typeof updateHeaderAvatarInitial === "function") {
+      updateHeaderAvatarInitial(displayUsername);
+    }
   }
 
   buildPantryUI();
@@ -562,11 +563,10 @@ async function deleteRecipe(recipeId) {
 }
 
 /* --- DISPENSA DINAMICA (SPESA + SCALA AUTOMATICA) --- */
-let pantryMode = "restock"; // "restock" (Aggiungi spesa) | "edit" (Modifica scorte totali)
-let pendingRestockValues = {}; // Mantiene i valori digitati mentre si filtra la lista
+let pantryMode = "restock"; // "restock" (Aggiungi Spesa) | "edit" (Scorte Attuali)
+let pendingRestockValues = {};
 
 function setPantryMode(mode) {
-  // Salva eventuali valori già digitati prima di cambiare vista
   if (pantryMode === "restock") {
     capturePendingRestockInputs();
   }
@@ -586,12 +586,12 @@ function setPantryMode(mode) {
     if (hintEl) {
       hintEl.innerHTML = `Inserisci solo le quantità comprate al supermercato: verranno <strong>sommate</strong> a ciò che hai già in casa.`;
     }
-    if (saveBtn) saveBtn.innerText = "➕ Aggiungi Spesa alla Dispensa";
+    if (saveBtn) saveBtn.innerText = "Aggiungi Spesa alla Dispensa";
   } else {
     if (hintEl) {
       hintEl.innerHTML = `Modifica direttamente il totale disponibile in dispensa (imposta <strong>0</strong> se un prodotto è finito).`;
     }
-    if (saveBtn) saveBtn.innerText = "💾 Salva Scorte Attuali";
+    if (saveBtn) saveBtn.innerText = "Salva Scorte Attuali";
   }
 
   buildPantryUI();
@@ -718,62 +718,6 @@ async function savePantry() {
   }
 }
 
-async function markRecipeAsCooked() {
-  const r = currentOpenRecipe;
-  if (!r || !r.ingredients || r.ingredients.length === 0) return;
-
-  const baseServings = r.servings || 1;
-  const ratio = currentModalServings / baseServings;
-  const missing = getMissingIngredients(r, currentModalServings);
-
-  let confirmMsg = `Scalare dalla dispensa gli ingredienti per ${currentModalServings} porzioni di "${r.title}"?`;
-  if (missing.length > 0) {
-    confirmMsg += `\n\nNota: alcuni ingredienti sono inferiori alla quantità richiesta e verranno portati a 0.`;
-  }
-
-  if (!confirm(confirmMsg)) return;
-
-  r.ingredients.forEach(item => {
-    const info = INGREDIENTS_DB.find(i => i.id === item.id);
-    if (info && info.staple) return;
-
-    const used = Math.round(item.amount * ratio * 10) / 10;
-    const currentAvail = pantry[item.id] || 0;
-    pantry[item.id] = Math.max(0, Math.round((currentAvail - used) * 10) / 10);
-  });
-
-  const { error } = await supabaseClient
-    .from("profiles")
-    .update({ pantry })
-    .eq("id", currentUser.id);
-
-  if (error) {
-    showToast("Errore aggiornamento dispensa");
-  } else {
-    buildPantryUI();
-    renderRecipes();
-    renderExploreRecipes();
-    renderModalContent();
-    showToast("Ingredienti scalati dalla dispensa!");
-  }
-}
-
-async function savePantry() {
-  INGREDIENTS_DB.filter(i => !i.staple).forEach(ing => {
-    const el = document.getElementById("pantry-" + ing.id);
-    const val = el ? Number(el.value) : 0;
-    pantry[ing.id] = val > 0 ? val : 0;
-  });
-
-  const { error } = await supabaseClient
-    .from("profiles")
-    .update({ pantry })
-    .eq("id", currentUser.id);
-
-  if (error) showToast("Errore salvataggio dispensa");
-  else showToast("Dispensa sincronizzata!");
-}
-
 function isRecipeDoable(recipe, targetServings = null) {
   if (!recipe.ingredients || recipe.ingredients.length === 0) return true;
   const baseServings = recipe.servings || 1;
@@ -815,12 +759,16 @@ async function markRecipeAsCooked() {
   const r = currentOpenRecipe;
   if (!r || !r.ingredients || r.ingredients.length === 0) return;
 
-  if (!confirm(`Scalare dalla dispensa gli ingredienti per ${currentModalServings} porzioni di "${r.title}"?`)) {
-    return;
-  }
-
   const baseServings = r.servings || 1;
   const ratio = currentModalServings / baseServings;
+  const missing = getMissingIngredients(r, currentModalServings);
+
+  let confirmMsg = `Scalare dalla dispensa gli ingredienti per ${currentModalServings} porzioni di "${r.title}"?`;
+  if (missing.length > 0) {
+    confirmMsg += `\n\nNota: alcuni ingredienti sono inferiori alla quantità richiesta e verranno portati a 0.`;
+  }
+
+  if (!confirm(confirmMsg)) return;
 
   r.ingredients.forEach(item => {
     const info = INGREDIENTS_DB.find(i => i.id === item.id);
@@ -843,7 +791,7 @@ async function markRecipeAsCooked() {
     renderRecipes();
     renderExploreRecipes();
     renderModalContent();
-    showToast("Dispensa aggiornata! Buon appetito!");
+    showToast("Ingredienti scalati dalla dispensa!");
   }
 }
 
@@ -871,7 +819,6 @@ function sortRecipeList(list, sortMode) {
   } else if (sortMode === "alpha") {
     copy.sort((a, b) => a.title.localeCompare(b.title, 'it', { sensitivity: 'base' }));
   }
-  // "newest" mantiene già l'ordine cronologico decrescente di Supabase
   return copy;
 }
 
@@ -1079,7 +1026,6 @@ function renderModalContent() {
     ratingHtml = `<div class="stars" style="font-size: 1.2rem; margin-bottom: 12px;">${"★".repeat(currentRating)}${"☆".repeat(5 - currentRating)}</div>`;
   }
 
-  // Lista della spesa automatica se mancano ingredienti per le porzioni selezionate
   const missingHtml = missingItems.length > 0 ? `
     <div class="missing-box">
       <div class="missing-box-header">
