@@ -2,32 +2,29 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Senza glutine ma buono</title>
 
-  <!-- PWA / Mobile Standalone Meta -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#F9EBE0">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SenzaGlutine">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.json">
 
-  <!-- Google Fonts: Chewy -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chewy&display=swap" rel="stylesheet">
 
-  <!-- Supabase JS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css?v=5">
 
-  <link rel="stylesheet" href="css/style.css?v=8">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <!-- Libreria ufficiale Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
   <header>
     <div class="header-inner">
+      <div style="width: 42px;"></div>
       <div class="app-title">Senza glutine ma buono</div>
       <button type="button" id="open-drawer-btn" class="drawer-trigger-btn" onclick="openSideDrawer()" style="display: none;" aria-label="Menu Profilo">
         <span id="drawer-avatar-initial" style="font-size: 1.35rem; line-height: 1;">U</span>
@@ -36,143 +33,158 @@
     </div>
   </header>
 
-  <!-- SCHERMATA AUTENTICAZIONE -->
-  <div id="auth-screen" class="container" style="display: none;">
-    <h3 class="page-title" id="auth-title">Accedi alla Community</h3>
-    <div class="form-card">
-      <div class="form-group" id="auth-username-group" style="display: none;">
-        <label>Nome utente (visibile agli amici)</label>
-        <input type="text" id="auth-username" placeholder="Es. ValentinaChef" autocomplete="username">
-      </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="auth-email" placeholder="la-tua@email.it" autocomplete="email">
-      </div>
-      <div class="form-group">
-        <label>Password (min. 6 caratteri)</label>
-        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
-      </div>
-      <button type="button" class="btn-main" id="auth-submit-btn" onclick="handleAuthSubmit()">Accedi</button>
-      
-      <button type="button" id="forgot-password-btn" onclick="handleForgotPassword()" style="background: none; border: none; width: 100%; margin-top: 12px; font-size: 1rem; text-decoration: underline; cursor: pointer;">
-        Password dimenticata?
-      </button>
+  <main class="container">
 
-      <button type="button" class="btn-main" id="auth-toggle-btn" onclick="toggleAuthMode()" style="background: var(--c-sky-blue); font-size: 1.05rem;">
-        Non hai un account? Registrati
-      </button>
+    <!-- SCHERMATA DI ACCESSO / REGISTRAZIONE -->
+    <section id="auth-screen">
+      <div class="form-card" style="margin-top: 20px;">
+        <h3 class="page-title" id="auth-title">Accedi alla Community</h3>
+
+        <div class="form-group" id="auth-username-group" style="display: none;">
+          <label>Nome utente pubblico</label>
+          <input type="text" id="auth-username" placeholder="es. ChefCeliaco">
+        </div>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="auth-email" placeholder="la-tua@email.it">
+        </div>
+
+        <div class="form-group">
+          <label>Password (min. 6 caratteri)</label>
+          <input type="password" id="auth-password" placeholder="••••••••">
+        </div>
+
+        <button type="button" class="btn-main" id="auth-submit-btn" onclick="handleAuthSubmit()">Accedi</button>
+
+        <div style="text-align: center; margin-top: 10px;">
+          <a href="#" onclick="handleForgotPassword(); return false;" style="font-size: 0.9rem; text-decoration: underline;">
+            Password dimenticata?
+          </a>
+        </div>
+
+        <div style="text-align: center; margin-top: 14px;">
+          <button type="button" id="auth-toggle-btn" onclick="toggleAuthMode()" style="background: none; border: none; text-decoration: underline; font-size: 0.95rem; cursor: pointer;">
+            Non hai un account? Registrati
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODALE IMPOSTAZIONE NUOVA PASSWORD (DOPO LINK EMAIL) -->
+    <div id="reset-password-modal" class="modal-overlay">
+      <div class="modal-content" style="max-width: 400px;">
+        <h3 class="modal-title" style="text-align: center;">Nuova Password</h3>
+        <div class="form-group" style="margin-top: 12px;">
+          <label>Inserisci la nuova password (min. 6 caratteri)</label>
+          <input type="password" id="new-password-input" placeholder="••••••••">
+        </div>
+        <button type="button" class="btn-main" onclick="submitNewPassword()">Salva Password</button>
+      </div>
     </div>
-  </div>
 
-  <!-- MODALE NUOVA PASSWORD -->
-  <div id="reset-password-modal" class="modal-overlay">
-    <div class="modal-content">
-      <h3 class="modal-title" style="text-align: center; margin-bottom: 14px;">Nuova Password</h3>
-      <div class="form-group">
-        <label>Inserisci la nuova password (min. 6 caratteri)</label>
-        <input type="password" id="new-password-input" placeholder="••••••••">
-      </div>
-      <button type="button" class="btn-main" onclick="updateNewPassword()">Salva Password</button>
-    </div>
-  </div>
+    <!-- APP PRINCIPALE -->
+    <div id="app-main" style="display: none;">
 
-  <!-- CONTENUTO PRINCIPALE APP -->
-  <div id="app-main" style="display: none;">
-    <div class="container">
-      
       <!-- VISTA 1: IL MIO RICETTARIO -->
       <section id="view-recipes" class="tab-content active">
-        <div class="controls-container">
-          <div class="form-group" style="margin-bottom: 10px;">
-            <input type="text" id="search-keyword" oninput="renderRecipes()" placeholder="Cerca nelle tue ricette...">
-          </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 class="page-title" style="margin: 0; text-align: left;">Il mio Ricettario</h3>
+          <button type="button" class="btn-main" onclick="showFormView()" style="width: auto; margin-top: 0; padding: 8px 16px; font-size: 0.95rem;">
+            + Aggiungi
+          </button>
+        </div>
 
+        <div class="controls-container">
           <div class="filter-toggle">
-            <span>In base alle mie scorte</span>
             <label class="switch">
               <input type="checkbox" id="toggle-doable" onchange="renderRecipes()">
               <span class="slider"></span>
             </label>
+            <span>Solo ricette fattibili ora</span>
           </div>
 
-          <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-origin" onchange="renderRecipes()">
-              <option value="all">Tutte (create da me + salvate)</option>
+          <div style="margin-bottom: 10px;">
+            <input type="text" id="search-keyword" oninput="renderRecipes()" placeholder="Cerca per titolo, autore o ingrediente...">
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <select id="filter-origin" onchange="renderRecipes()" style="flex: 1;">
+              <option value="all">Tutte (Mie + Salvate)</option>
               <option value="mine">Solo create da me</option>
-              <option value="saved">Solo salvate da amici/community</option>
+              <option value="saved">Solo salvate dalla community</option>
+            </select>
+
+            <select id="filter-sort" onchange="renderRecipes()" style="flex: 1;">
+              <option value="newest">Più recenti</option>
+              <option value="rating">Voto migliore ★</option>
+              <option value="alpha">Ordine A - Z</option>
             </select>
           </div>
 
-          <div class="form-group" style="margin-bottom: 8px;">
-            <select id="filter-macro" onchange="updateFilterSubcatOptions('filter'); renderRecipes()">
-              <option value="tutti">Tutto (dolci & salati)</option>
+          <div style="display: flex; gap: 8px;">
+            <select id="filter-macro" onchange="updateFilterSubcatOptions('filter'); renderRecipes()" style="flex: 1;">
+              <option value="tutti">Tutte le categorie</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
+              <option value="impasti">Impasti</option>
             </select>
-          </div>
 
-          <div class="form-group" id="filter-subcat-container" style="display: none; margin-bottom: 8px;">
-            <select id="filter-subcat" onchange="renderRecipes()">
-              <option value="tutti">Tutte le sottocategorie</option>
-            </select>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 4px;">
-            <select id="filter-sort" onchange="renderRecipes()">
-              <option value="newest">più recenti</option>
-              <option value="rating">valutazione</option>
-              <option value="alpha">alfabetico</option>
-            </select>
+            <div id="filter-subcat-container" style="display: none; flex: 1;">
+              <select id="filter-subcat" onchange="renderRecipes()">
+                <option value="tutti">Tutte le sottocategorie</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div id="recipe-list"></div>
       </section>
 
-      <!-- VISTA 2 (CENTRALE): ESPLORA -->
+      <!-- VISTA 2: ESPLORA COMMUNITY -->
       <section id="view-explore" class="tab-content">
         <h3 class="page-title">Esplora Community</h3>
-        <div class="controls-container">
-          <div class="form-group" style="margin-bottom: 10px;">
-            <input type="text" id="explore-keyword" oninput="renderExploreRecipes()" placeholder="Cerca ricetta, ingrediente o autore...">
-          </div>
 
+        <div class="controls-container">
           <div class="filter-toggle">
-            <span>In base alle mie scorte</span>
             <label class="switch">
               <input type="checkbox" id="explore-toggle-doable" onchange="renderExploreRecipes()">
               <span class="slider"></span>
             </label>
+            <span>Solo ricette fattibili ora</span>
           </div>
 
-          <div class="form-group" style="margin-bottom: 8px;">
-            <select id="explore-scope" onchange="renderExploreRecipes()">
-              <option value="all">Tutte (amici + pubbliche)</option>
-              <option value="friends">Solo degli amici</option>
-              <option value="public">Solo pubbliche</option>
+          <div style="margin-bottom: 10px;">
+            <input type="text" id="explore-keyword" oninput="renderExploreRecipes()" placeholder="Cerca titolo, autore o ingrediente...">
+          </div>
+
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <select id="explore-scope" onchange="renderExploreRecipes()" style="flex: 1;">
+              <option value="all">Amici + Pubbliche</option>
+              <option value="friends">Solo Amici</option>
+              <option value="public">Solo Pubbliche</option>
+            </select>
+
+            <select id="explore-sort" onchange="renderExploreRecipes()" style="flex: 1;">
+              <option value="newest">Più recenti</option>
+              <option value="rating">Voto migliore ★</option>
+              <option value="alpha">Ordine A - Z</option>
             </select>
           </div>
 
-          <div class="form-group" style="margin-bottom: 8px;">
-            <select id="explore-macro" onchange="updateFilterSubcatOptions('explore'); renderExploreRecipes()">
-              <option value="tutti">Tutto (dolci & salati)</option>
+          <div style="display: flex; gap: 8px;">
+            <select id="explore-macro" onchange="updateFilterSubcatOptions('explore'); renderExploreRecipes()" style="flex: 1;">
+              <option value="tutti">Tutte le categorie</option>
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
+              <option value="impasti">Impasti</option>
             </select>
-          </div>
 
-          <div class="form-group" id="explore-subcat-container" style="display: none; margin-bottom: 8px;">
-            <select id="explore-subcat" onchange="renderExploreRecipes()">
-              <option value="tutti">Tutte le sottocategorie</option>
-            </select>
-          </div>
-
-          <div class="form-group" style="margin-bottom: 4px;">
-            <select id="explore-sort" onchange="renderExploreRecipes()">
-              <option value="newest">più recenti</option>
-              <option value="rating">valutazione</option>
-              <option value="alpha">alfabetico</option>
-            </select>
+            <div id="explore-subcat-container" style="display: none; flex: 1;">
+              <select id="explore-subcat" onchange="renderExploreRecipes()">
+                <option value="tutti">Tutte le sottocategorie</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -182,7 +194,7 @@
       <!-- VISTA 3: DISPENSA DINAMICA -->
       <section id="view-pantry" class="tab-content">
         <h3 class="page-title">Cosa offre la casa?</h3>
-        <p class="info">Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono sempre disponibili.</p>
+        <p class="info">La tua dispensa si aggiorna in automatico quando cucini una ricetta o registri una spesa. <br> Gli ingredienti base (sale, acqua, olio, condimenti a piacere) sono sempre disponibili.</p>
 
         <!-- Selettore Modalità Dispensa (Sinistra: Scorte Attuali | Destra: Aggiungi Spesa) -->
         <div class="pantry-mode-switch">
@@ -195,76 +207,84 @@
         </div>
 
         <div class="form-card">
-          <div style="margin-bottom: 12px;">
-            <input type="text" id="pantry-search" oninput="buildPantryUI()" placeholder="Filtra ingrediente in dispensa...">
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input type="text" id="pantry-search" oninput="buildPantryUI()" placeholder="Filtra ingrediente in dispensa..." style="flex: 1;">
+            <button type="button" class="btn-add-ing" onclick="createNewIngredientFromPantry()" style="margin-top: 0; white-space: nowrap; font-weight: bold;">
+              + Nuovo
+            </button>
           </div>
+
+          <p id="pantry-mode-hint" style="font-size: 0.95rem; margin-top: 0; margin-bottom: 12px; background: rgba(249,235,224,0.85); padding: 8px 12px; border-radius: 12px;">
+            Inserisci solo le quantità comprate al supermercato: verranno <strong>sommate</strong> a ciò che hai già in casa.
+          </p>
 
           <div id="pantry-inputs"></div>
 
           <button type="button" class="btn-main" id="pantry-save-btn" onclick="savePantry()">
-            Aggiungi spesa alla dispensa
+            Aggiungi Spesa alla Dispensa
           </button>
         </div>
       </section>
 
-      <!-- VISTA 4: FORM NUOVA / MODIFICA RICETTA -->
+      <!-- VISTA 4: NUOVA / MODIFICA RICETTA -->
       <section id="view-add" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <button type="button" class="btn-add-ing" style="margin-top: 0;" onclick="cancelRecipeForm()">← Indietro</button>
-          <h3 class="page-title" style="margin: 0;">Nuova ricetta</h3>
-          <div style="width: 75px;"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h3 class="page-title" style="margin: 0; text-align: left;">Nuova Ricetta</h3>
+          <button type="button" class="btn-add-ing" onclick="cancelRecipeForm()" style="margin-top: 0;">
+            ✕ Annulla
+          </button>
         </div>
 
         <div class="form-card">
           <div class="form-group">
             <label>Titolo</label>
-            <input type="text" id="rec-title" placeholder="Es. Torta margherita">
+            <input type="text" id="rec-title" placeholder="es. Torta paradiso">
           </div>
 
           <div class="form-group">
             <label>Chi può vedere questa ricetta?</label>
             <select id="rec-visibility">
-              <option value="private">🔒 Solo io (Privata)</option>
-              <option value="friends">👥 Condivisa con i miei amici</option>
-              <option value="public">🌍 Pubblica (Tutta la community)</option>
+              <option value="friends" selected>Solo i miei amici (Consigliato)</option>
+              <option value="public">Tutti gli utenti (Pubblica)</option>
+              <option value="private">Solo io (Privata)</option>
             </select>
           </div>
 
           <div class="form-group">
-            <label>Macro-categoria</label>
+            <label>Categoria</label>
             <select id="rec-macro" onchange="updateSubcatOptions()">
               <option value="dolci">Dolci</option>
               <option value="salati">Salati</option>
+              <option value="impasti">Impasti</option>
             </select>
           </div>
 
-          <div id="subcat-container" class="form-group">
-            <label>Sotto-categoria</label>
+          <div class="form-group">
+            <label>Sottocategoria</label>
             <select id="rec-subcat"></select>
           </div>
 
-          <div class="form-group">
-            <label>Porzioni</label>
-            <input type="number" id="rec-servings" value="1" min="1" placeholder="1">
+          <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+              <label>Porzioni</label>
+              <input type="number" id="rec-servings" value="1" min="1" max="50">
+            </div>
+
+            <div class="form-group" style="flex: 1;">
+              <label>Timer (min)</label>
+              <input type="number" id="rec-timer-min" placeholder="es. 35" min="1" max="360">
+            </div>
           </div>
 
           <div class="form-group">
             <label>Valutazione</label>
             <select id="rec-rating">
-              <option value="5">★★★★★</option>
-              <option value="4">★★★★☆</option>
-              <option value="3">★★★☆☆</option>
-              <option value="2">★★☆☆☆</option>
-              <option value="1">★☆☆☆☆</option>
+              <option value="5">★★★★★ (5)</option>
+              <option value="4">★★★★☆ (4)</option>
+              <option value="3">★★★☆☆ (3)</option>
+              <option value="2">★★☆☆☆ (2)</option>
+              <option value="1">★☆☆☆☆ (1)</option>
             </select>
-          </div>
-
-          <div class="form-group">
-            <label>Foto</label>
-            <div class="file-input-wrapper">
-              <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
-              <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
-            </div>
           </div>
 
           <div class="form-group">
@@ -275,95 +295,94 @@
 
           <div class="form-group">
             <label>Procedimento</label>
-            <textarea id="rec-procedure" rows="4" placeholder="Passaggi di preparazione..."></textarea>
+            <textarea id="rec-procedure" rows="6" placeholder="Scrivi qui i passaggi della ricetta..."></textarea>
           </div>
-          
+
           <div class="form-group">
-            <label>Timer cottura in minuti <br> (lascia vuoto se non serve)</label>
-            <input type="number" id="rec-timer-min" min="1" max="360" placeholder="Es. 25">
+            <label>Foto</label>
+            <div class="file-input-wrapper">
+              <span class="file-input-btn" id="file-name-display">Carica o scatta foto</span>
+              <input type="file" id="rec-photo" accept="image/*" onchange="updateFileName(this)">
+            </div>
           </div>
 
           <button type="button" class="btn-main" id="save-recipe-btn" onclick="saveNewRecipe()">Salva Ricetta</button>
         </div>
       </section>
+
+      <!-- BARRA DI NAVIGAZIONE INFERIORE A 3 PULSANTI -->
+      <nav>
+        <button id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
+          <svg viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+          Ricettario
+        </button>
+        <button id="nav-btn-explore" onclick="switchTab('explore', this)">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          Esplora
+        </button>
+        <button id="nav-btn-pantry" onclick="switchTab('pantry', this)">
+          <svg viewBox="0 0 24 24"><path d="M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z"/></svg>
+          Dispensa
+        </button>
+      </nav>
     </div>
 
-    <!-- PANNELLO LATERALE PROFILO, AMICI E NUOVA RICETTA -->
-    <div id="side-drawer-overlay" class="drawer-overlay" onclick="closeSideDrawer()">
-      <aside id="side-drawer" class="side-drawer" onclick="event.stopPropagation()">
-        <div class="drawer-header">
-          <span style="font-size: 1.4rem;">Il mio Account</span>
-          <button type="button" class="modal-close" style="position: static;" onclick="closeSideDrawer()">✕</button>
-        </div>
+  </main>
 
-        <div class="drawer-profile-card">
-          <div style="font-size: 1.35rem; margin-bottom: 2px;" id="drawer-username">Utente</div>
-          <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 12px; word-break: break-all;" id="drawer-email"></div>
-          <button type="button" class="drawer-btn" onclick="changeUsername()">✏️ Cambia nome utente</button>
-        </div>
+  <!-- PANNELLO LATERALE PROFILO E AMICI (DRAWER) -->
+  <div id="side-drawer-overlay" class="drawer-overlay" onclick="if(event.target.id === 'side-drawer-overlay') closeSideDrawer()">
+    <aside class="side-drawer">
+      <div class="drawer-header">
+        <span style="font-size: 1.35rem;">Profilo & Amici</span>
+        <button type="button" class="modal-close" style="position: static; width: 32px; height: 32px;" onclick="closeSideDrawer()">✕</button>
+      </div>
 
-        <button type="button" class="btn-main" style="margin-top: 0; margin-bottom: 14px; background: var(--c-sky-blue);" onclick="openNewRecipeFormFromDrawer()">
-          ➕ Nuova Ricetta
+      <div class="drawer-profile-card">
+        <div id="drawer-username" style="font-size: 1.25rem; margin-bottom: 2px;">Utente</div>
+        <div id="drawer-email" style="font-size: 0.85rem; margin-bottom: 10px; opacity: 0.85;">email@esempio.it</div>
+        <button type="button" class="drawer-btn" onclick="changeUsername()">✏️ Cambia Nome Utente</button>
+      </div>
+
+      <div class="drawer-accordion">
+        <button type="button" class="drawer-accordion-toggle" onclick="toggleFriendsAccordion()">
+          <span>👥 I miei Amici (<span id="friends-count-badge">0</span>)</span>
+          <span id="friends-accordion-arrow">▼</span>
         </button>
 
-        <div class="drawer-accordion">
-          <button type="button" class="drawer-accordion-toggle" onclick="toggleFriendsDrawerSection()">
-            <span>👥 Amici <span id="drawer-friends-count"></span></span>
-            <span id="friends-chevron">▼</span>
-          </button>
-
-          <div id="drawer-friends-content" style="display: none; margin-top: 10px;">
-            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
-              <input type="text" id="friend-email-input" placeholder="Nome utente o email..." style="padding: 8px 12px; font-size: 1rem;">
-              <button type="button" class="btn-timer" style="flex: 0; padding: 0 12px;" onclick="sendFriendRequest()">Invita</button>
-            </div>
-
-            <div id="pending-requests-box" style="display: none; margin-bottom: 12px;">
-              <div style="font-size: 1rem; margin-bottom: 6px;">🔔 Richieste ricevute:</div>
-              <div id="pending-requests-list"></div>
-            </div>
-
-            <div id="friends-list">
-              <p style="margin: 0; font-size: 0.95rem;">Nessun amico ancora</p>
-            </div>
+        <div id="friends-accordion-body" style="display: none; margin-top: 12px;">
+          <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+            <input type="text" id="friend-search-input" placeholder="Cerca nome utente..." style="flex: 1; padding: 8px 12px; font-size: 0.95rem;">
+            <button type="button" class="btn-add-ing" onclick="sendFriendRequest()" style="margin-top: 0; padding: 8px 12px; font-size: 0.95rem;">Invia</button>
           </div>
-        </div>
 
-        <div class="drawer-footer-actions">
-          <button type="button" class="drawer-btn" onclick="logoutUser()">🚪 Esci</button>
-          <button type="button" class="drawer-btn drawer-btn-danger" onclick="deleteUserAccount()">🗑️ Elimina account</button>
-        </div>
-      </aside>
-    </div>
+          <div id="friend-requests-section" style="display: none; margin-bottom: 12px;">
+            <div style="font-size: 0.9rem; margin-bottom: 6px; text-decoration: underline;">Richieste ricevute:</div>
+            <div id="friend-requests-list"></div>
+          </div>
 
-    <!-- MODALE DETTAGLIO RICETTA -->
-    <div id="recipe-modal" class="modal-overlay">
-      <div class="modal-content">
-        <button type="button" class="modal-close" onclick="closeRecipeModal()">✕</button>
-        <div id="modal-body"></div>
+          <div style="font-size: 0.9rem; margin-bottom: 6px; text-decoration: underline;">Amici confermati:</div>
+          <div id="friends-list"></div>
+        </div>
       </div>
-    </div>
 
-    <!-- BARRA NAVIGAZIONE INFERIORE A 3 PAGINE -->
-    <nav>
-      <button type="button" id="nav-btn-recipes" class="active" onclick="switchTab('recipes', this)">
-        <svg viewBox="0 0 24 24"><path d="M11 9H9V2H7V9H5V2H3V9C3 11.12 4.66 12.84 6.75 12.97V22H9.25V12.97C11.34 12.84 13 11.12 13 9V2H11V9M16 6V14H18.5V22H21V2C18.24 2 16 4.24 16 6Z" /></svg>
-        Ricette
-      </button>
-      <button type="button" id="nav-btn-explore" onclick="switchTab('explore', this)">
-        <svg viewBox="0 0 24 24"><path d="M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z"/></svg>
-        Esplora
-      </button>
-      <button type="button" id="nav-btn-pantry" onclick="switchTab('pantry', this)">
-        <svg viewBox="0 0 24 24"><path d="M7,2H17A2,2 0 0,1 19,4V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V4A2,2 0 0,1 7,2M7,4V10H17V4H7M7,12V20H17V12H7Z" /></svg>
-        Dispensa
-      </button>
-    </nav>
+      <div class="drawer-footer-actions">
+        <button type="button" class="drawer-btn" onclick="requestPasswordResetFromDrawer()">🔑 Cambia Password</button>
+        <button type="button" class="drawer-btn drawer-btn-danger" onclick="handleLogout()">🚪 Esci dall'Account</button>
+      </div>
+    </aside>
   </div>
 
-  <!-- CARICAMENTO MODULARE DEI FILE JS -->
-  <script src="js/config.js?v=2"></script>
-  <script src="js/auth.js?v=4"></script>
-  <script src="js/app.js?v=5"></script>
+  <!-- MODALE SCHEDA RICETTA -->
+  <div id="recipe-modal" class="modal-overlay">
+    <div class="modal-content">
+      <button type="button" class="modal-close" onclick="closeRecipeModal()">✕</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Script modulari -->
+  <script src="js/config.js?v=3"></script>
+  <script src="js/auth.js?v=5"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>
