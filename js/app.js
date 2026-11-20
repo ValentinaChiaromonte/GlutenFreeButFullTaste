@@ -119,7 +119,6 @@ async function loadUserProfileAndData() {
 }
 
 async function loadRecipesFromCloud() {
-  // 1. Carica le ricette visibili all'utente
   const { data, error } = await supabaseClient
     .from("recipes")
     .select("*")
@@ -130,7 +129,6 @@ async function loadRecipesFromCloud() {
     return showToast("Errore caricamento ricette: " + error.message, 3500);
   }
 
-  // 2. Carica i profili degli autori per mostrare i nomi utente
   const userIds = [...new Set((data || []).map(r => r.user_id).filter(Boolean))];
   let profilesMap = {};
   if (userIds.length > 0) {
@@ -144,7 +142,6 @@ async function loadRecipesFromCloud() {
     });
   }
 
-  // 3. Carica le ricette salvate dall'utente con le rispettive valutazioni
   const { data: savedData } = await supabaseClient
     .from("saved_recipes")
     .select("recipe_id, rating")
@@ -409,7 +406,6 @@ async function handleIngredientSelectChange(selectEl) {
 
     const cleanName = name.trim();
 
-    // Controlla se esiste già nella lista globale (evita doppioni)
     const existing = INGREDIENTS_DB.find(
       i => i.name.toLowerCase().trim() === cleanName.toLowerCase()
     );
@@ -665,8 +661,8 @@ async function deleteRecipe(recipeId) {
   }
 }
 
-/* --- DISPENSA DINAMICA (SPESA + SCALA AUTOMATICA) --- */
-let pantryMode = "restock"; // "restock" (Aggiungi Spesa) | "edit" (Scorte Attuali)
+/* --- DISPENSA DINAMICA (SOLO SPESA + RICETTA CUCINATA) --- */
+let pantryMode = "restock"; // "restock" (Aggiungi Spesa) | "edit" (Scorte Attuali in sola lettura)
 let pendingRestockValues = {};
 
 function setPantryMode(mode) {
@@ -689,12 +685,17 @@ function setPantryMode(mode) {
     if (hintEl) {
       hintEl.innerHTML = `Inserisci solo le quantità comprate al supermercato: verranno <strong>sommate</strong> a ciò che hai già in casa.`;
     }
-    if (saveBtn) saveBtn.innerText = "Aggiungi Spesa alla Dispensa";
+    if (saveBtn) {
+      saveBtn.style.display = "block";
+      saveBtn.innerText = "Aggiungi Spesa alla Dispensa";
+    }
   } else {
     if (hintEl) {
-      hintEl.innerHTML = `Modifica direttamente il totale disponibile in dispensa (imposta <strong>0</strong> se un prodotto è finito).`;
+      hintEl.innerHTML = `Quantità attualmente disponibili in casa. Si aggiornano aggiungendo una <strong>spesa</strong> o cliccando <strong>"Ho cucinato questa ricetta"</strong>.`;
     }
-    if (saveBtn) saveBtn.innerText = "Salva Scorte Attuali";
+    if (saveBtn) {
+      saveBtn.style.display = "none";
+    }
   }
 
   buildPantryUI();
@@ -709,6 +710,60 @@ function capturePendingRestockInputs() {
       else delete pendingRestockValues[ing.id];
     }
   });
+}
+
+async function createNewIngredientFromPantry() {
+  const name = prompt("Nome del nuovo ingrediente (sarà visibile a tutta la community):");
+  if (!name || !name.trim()) return;
+
+  const cleanName = name.trim();
+
+  const existing = INGREDIENTS_DB.find(
+    i => i.name.toLowerCase().trim() === cleanName.toLowerCase()
+  );
+  if (existing) {
+    const searchEl = document.getElementById("pantry-search");
+    if (searchEl) searchEl.value = existing.name;
+    buildPantryUI();
+    return showToast(`"${existing.name}" è già presente nella lista!`);
+  }
+
+  let unit = prompt("Unità di misura (es. g, ml, pz):", "g");
+  unit = unit ? unit.trim().toLowerCase() : "g";
+
+  const id = "custom_" + Date.now();
+  const { error } = await supabaseClient
+    .from("ingredients")
+    .insert({
+      id,
+      name: cleanName,
+      unit,
+      staple: false,
+      created_by: currentUser.id
+    });
+
+  if (error) {
+    console.error(error);
+    return showToast("Errore salvataggio ingrediente");
+  }
+
+  await loadSharedIngredients();
+
+  document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
+    const curVal = sel.value;
+    sel.innerHTML = getIngredientOptionsHtml(curVal);
+  });
+
+  if (pantryMode === "restock") {
+    const boughtStr = prompt(`Quanti ${unit} di "${cleanName}" hai appena comprato? (Lascia vuoto o 0 per non aggiungere ora)`, "");
+    const boughtVal = Number(boughtStr);
+    if (boughtVal > 0) {
+      pendingRestockValues[id] = boughtVal;
+    }
+  }
+
+  buildPantryUI();
+  showToast(`"${cleanName}" aggiunto per tutta la community!`);
 }
 
 function buildPantryUI() {
@@ -728,7 +783,7 @@ function buildPantryUI() {
     .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
 
   if (pantryIngredients.length === 0) {
-    c.innerHTML = `<p style="text-align:center; margin: 12px 0;">Nessun ingrediente trovato.</p>`;
+    c.innerHTML = `<p style="text-align:center; margin: 12px 0;">Nessun ingrediente trovato. Usa il tasto <strong>+ Nuovo</strong> per aggiungerlo!</p>`;
     return;
   }
 
@@ -753,8 +808,9 @@ function buildPantryUI() {
         <div style="flex:2; min-width:0;">
           <div style="font-size:1rem;">${ing.name}</div>
         </div>
-        <input type="number" id="pantry-${ing.id}" value="${currentStock > 0 ? currentStock : ''}" placeholder="0" min="0" step="any" style="width:90px; text-align:right; padding:8px 10px;">
-        <span style="font-size:0.85rem; width:24px;">${ing.unit}</span>
+        <span class="pantry-current-badge" style="font-size:0.95rem; padding:4px 12px;">
+          ${currentStock} ${ing.unit}
+        </span>
       `;
     }
 
@@ -763,61 +819,43 @@ function buildPantryUI() {
 }
 
 async function savePantry() {
-  if (pantryMode === "restock") {
-    capturePendingRestockInputs();
-    let updatedCount = 0;
+  if (pantryMode !== "restock") return;
 
-    Object.keys(pendingRestockValues).forEach(ingId => {
-      const added = Number(pendingRestockValues[ingId]) || 0;
-      if (added > 0) {
-        const current = pantry[ingId] || 0;
-        pantry[ingId] = Math.round((current + added) * 10) / 10;
-        updatedCount++;
-      }
-    });
+  capturePendingRestockInputs();
+  let updatedCount = 0;
 
-    if (updatedCount === 0) {
-      return showToast("Inserisci almeno un prodotto acquistato!");
+  Object.keys(pendingRestockValues).forEach(ingId => {
+    const added = Number(pendingRestockValues[ingId]) || 0;
+    if (added > 0) {
+      const current = pantry[ingId] || 0;
+      pantry[ingId] = Math.round((current + added) * 10) / 10;
+      updatedCount++;
     }
+  });
 
-    const { error } = await supabaseClient
-      .from("profiles")
-      .update({ pantry })
-      .eq("id", currentUser.id);
+  if (updatedCount === 0) {
+    return showToast("Inserisci almeno un prodotto acquistato!");
+  }
 
-    if (error) {
-      showToast("Errore aggiornamento dispensa");
-    } else {
-      pendingRestockValues = {};
-      const searchEl = document.getElementById("pantry-search");
-      if (searchEl) searchEl.value = "";
-      buildPantryUI();
-      renderRecipes();
-      renderExploreRecipes();
-      showToast(`Spesa aggiunta (+${updatedCount} prodotti)!`);
-    }
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ pantry })
+    .eq("id", currentUser.id);
+
+  if (error) {
+    showToast("Errore aggiornamento dispensa");
   } else {
-    INGREDIENTS_DB.filter(i => !isStapleIngredient(i)).forEach(ing => {
-      const el = document.getElementById("pantry-" + ing.id);
-      if (el) {
-        const val = Number(el.value);
-        pantry[ing.id] = val > 0 ? Math.round(val * 10) / 10 : 0;
-      }
+    pendingRestockValues = {};
+    const searchEl = document.getElementById("pantry-search");
+    if (searchEl) searchEl.value = "";
+    document.querySelectorAll("#pantry-inputs input[type='number']").forEach(inp => {
+      inp.value = "";
     });
 
-    const { error } = await supabaseClient
-      .from("profiles")
-      .update({ pantry })
-      .eq("id", currentUser.id);
-
-    if (error) {
-      showToast("Errore salvataggio dispensa");
-    } else {
-      buildPantryUI();
-      renderRecipes();
-      renderExploreRecipes();
-      showToast("Scorte attuali salvate!");
-    }
+    buildPantryUI();
+    renderRecipes();
+    renderExploreRecipes();
+    showToast(`Spesa aggiunta (+${updatedCount} prodotti)!`);
   }
 }
 
