@@ -1467,7 +1467,7 @@ async function handleAuthSubmit() {
       return showToast("Questo nome utente è già occupato, scegline un altro!", 2800);
     }
 
-    const { error } = await supabaseClient.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
@@ -1479,11 +1479,16 @@ async function handleAuthSubmit() {
       showToast("Errore registrazione: " + error.message, 3000);
     } else {
       showToast("Registrazione completata!");
+      if (data?.session) await handleSessionChange(data.session);
     }
   } else {
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) showToast("Credenziali non valide", 2500);
-    else showToast("Bentornato!");
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast("Credenziali non valide", 2500);
+    } else {
+      showToast("Bentornato!");
+      if (data?.session) await handleSessionChange(data.session);
+    }
   }
 
   btn.disabled = false;
@@ -1531,18 +1536,18 @@ async function handleSessionChange(session) {
 
   if (session && session.user) {
     currentUser = session.user;
-    authScreen.style.display = "none";
-    appMain.style.display = "block";
-    drawerBtn.style.display = "flex";
+    if (authScreen) authScreen.style.display = "none";
+    if (appMain) appMain.style.display = "block";
+    if (drawerBtn) drawerBtn.style.display = "flex";
 
     await loadUserProfileAndData();
   } else {
     currentUser = null;
     currentProfile = null;
     closeSideDrawer();
-    authScreen.style.display = "block";
-    appMain.style.display = "none";
-    drawerBtn.style.display = "none";
+    if (authScreen) authScreen.style.display = "block";
+    if (appMain) appMain.style.display = "none";
+    if (drawerBtn) drawerBtn.style.display = "none";
   }
 }
 
