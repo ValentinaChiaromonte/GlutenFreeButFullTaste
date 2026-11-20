@@ -1,6 +1,3 @@
-// =========================================================
-// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA DINAMICA, INGREDIENTI CONDIVISI, STORAGE E TIMER
-// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
@@ -664,8 +661,8 @@ async function deleteRecipe(recipeId) {
   }
 }
 
-/* --- DISPENSA DINAMICA (SOLO SPESA + RICETTA CUCINATA) --- */
-let pantryMode = "restock"; // "restock" (Aggiungi Spesa) | "edit" (Scorte Attuali in sola lettura)
+/* --- DISPENSA DINAMICA (SOLO SPESA + RICETTA CUCINATA + SCALA SCADENZA) --- */
+let pantryMode = "restock"; // "restock" (Aggiungi Spesa) | "edit" (Scorte Attuali)
 let pendingRestockValues = {};
 
 function setPantryMode(mode) {
@@ -694,7 +691,7 @@ function setPantryMode(mode) {
     }
   } else {
     if (hintEl) {
-      hintEl.innerHTML = `Quantità attualmente disponibili in casa. Si aggiornano aggiungendo una <strong>spesa</strong> o cliccando <strong>"Ho cucinato questa ricetta"</strong>.`;
+      hintEl.innerHTML = `Quantità disponibili in casa. Si aggiornano con una <strong>spesa</strong>, cliccando <strong>"Ho cucinato questa ricetta"</strong> o usando <strong>−</strong> per scadenza/consumo extra.`;
     }
     if (saveBtn) {
       saveBtn.style.display = "none";
@@ -807,6 +804,10 @@ function buildPantryUI() {
         <span style="font-size:0.85rem; width:24px;">${ing.unit}</span>
       `;
     } else {
+      const deductBtnHtml = currentStock > 0
+        ? `<button type="button" onclick="deductIngredientFromPantry('${ing.id}')" title="Rimuovi quantità scaduta o usata" style="background: #fca5a5; border: 1.5px solid var(--c-dark-teal); border-radius: 50%; width: 32px; height: 32px; font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">−</button>`
+        : ``;
+
       div.innerHTML = `
         <div style="flex:2; min-width:0;">
           <div style="font-size:1rem;">${ing.name}</div>
@@ -814,11 +815,52 @@ function buildPantryUI() {
         <span class="pantry-current-badge" style="font-size:0.95rem; padding:4px 12px;">
           ${currentStock} ${ing.unit}
         </span>
+        ${deductBtnHtml}
       `;
     }
 
     c.appendChild(div);
   });
+}
+
+async function deductIngredientFromPantry(ingId) {
+  const ing = INGREDIENTS_DB.find(i => i.id === ingId);
+  if (!ing) return;
+
+  const currentStock = pantry[ingId] || 0;
+  if (currentStock <= 0) {
+    return showToast("Quantità già a 0!");
+  }
+
+  const inputStr = prompt(
+    `Quanto "${ing.name}" vuoi rimuovere dal totale (${currentStock} ${ing.unit} disponibili)?\nInserisci la quantità in ${ing.unit} (es. per scadenza o uso extra):`,
+    String(currentStock)
+  );
+
+  if (inputStr === null) return;
+
+  const amountToRemove = Number(inputStr.replace(",", "."));
+  if (isNaN(amountToRemove) || amountToRemove <= 0) {
+    return showToast("Inserisci una quantità valida maggiore di 0");
+  }
+
+  const newStock = Math.max(0, Math.round((currentStock - amountToRemove) * 10) / 10);
+  pantry[ingId] = newStock;
+
+  const { error } = await supabaseClient
+    .from("profiles")
+    .update({ pantry })
+    .eq("id", currentUser.id);
+
+  if (error) {
+    pantry[ingId] = currentStock;
+    return showToast("Errore aggiornamento dispensa");
+  }
+
+  buildPantryUI();
+  renderRecipes();
+  renderExploreRecipes();
+  showToast(`Rimossi ${Math.min(currentStock, amountToRemove)} ${ing.unit} di ${ing.name}`);
 }
 
 async function savePantry() {
