@@ -1,6 +1,3 @@
-// =========================================================
-// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE, STORAGE E TIMER
-// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
@@ -31,6 +28,49 @@ window.onload = async () => {
   });
 };
 
+/* --- CATALOGO INGREDIENTI CONDIVISI DELLA COMMUNITY --- */
+async function loadSharedIngredients() {
+  const { data: sharedData, error } = await supabaseClient
+    .from("ingredients")
+    .select("*")
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.error("Errore caricamento ingredienti condivisi:", error);
+    customIngredients = [];
+    INGREDIENTS_DB = [...BASE_INGREDIENTS];
+    return;
+  }
+
+  customIngredients = (sharedData || []).map(item => ({
+    id: item.id,
+    name: item.name,
+    unit: item.unit,
+    staple: item.staple || false,
+    createdBy: item.created_by
+  }));
+
+  const baseIds = new Set(BASE_INGREDIENTS.map(i => i.id));
+  const uniqueShared = customIngredients.filter(i => !baseIds.has(i.id));
+  INGREDIENTS_DB = [...BASE_INGREDIENTS, ...uniqueShared];
+}
+
+function isStapleIngredient(itemOrId) {
+  const id = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
+  if (!id) return false;
+
+  const info = INGREDIENTS_DB.find(i => i.id === id);
+  if (info && info.staple) return true;
+
+  const checkStr = ((info ? info.name : id) || "").toLowerCase().trim();
+  return (
+    checkStr === "sale" ||
+    checkStr === "acqua" ||
+    checkStr.startsWith("olio") ||
+    checkStr.startsWith("condimenti")
+  );
+}
+
 async function loadUserProfileAndData() {
   if (!currentUser) return;
 
@@ -43,8 +83,6 @@ async function loadUserProfileAndData() {
   if (profile) {
     currentProfile = profile;
     pantry = profile.pantry || {};
-    customIngredients = profile.custom_ingredients || [];
-    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
 
     const displayUsername = profile.username || currentUser.email.split("@")[0];
     document.getElementById("drawer-username").innerText = displayUsername;
@@ -52,8 +90,29 @@ async function loadUserProfileAndData() {
     if (typeof updateHeaderAvatarInitial === "function") {
       updateHeaderAvatarInitial(displayUsername);
     }
+
+    // Migra eventuali vecchi ingredienti personali nella tabella condivisa
+    const legacyCustom = profile.custom_ingredients || [];
+    if (legacyCustom.length > 0) {
+      for (const oldIng of legacyCustom) {
+        await supabaseClient
+          .from("ingredients")
+          .upsert({
+            id: oldIng.id,
+            name: oldIng.name,
+            unit: oldIng.unit || "g",
+            staple: oldIng.staple || false,
+            created_by: currentUser.id
+          }, { onConflict: "id", ignoreDuplicates: true });
+      }
+      await supabaseClient
+        .from("profiles")
+        .update({ custom_ingredients: [] })
+        .eq("id", currentUser.id);
+    }
   }
 
+  await loadSharedIngredients();
   buildPantryUI();
   await loadFriendships();
   await loadRecipesFromCloud();
@@ -125,23 +184,6 @@ async function loadRecipesFromCloud() {
 
   renderRecipes();
   renderExploreRecipes();
-}
-
-/* --- CONTROLLO INGREDIENTI BASE (SEMPRE DISPONIBILI) --- */
-function isStapleIngredient(itemOrId) {
-  const id = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
-  if (!id) return false;
-
-  const info = INGREDIENTS_DB.find(i => i.id === id);
-  if (info && info.staple) return true;
-
-  const checkStr = ((info ? info.name : id) || "").toLowerCase().trim();
-  return (
-    checkStr === "sale" ||
-    checkStr === "acqua" ||
-    checkStr.startsWith("olio") ||
-    checkStr.startsWith("condimenti")
-  );
 }
 
 /* --- SALVATAGGIO E VALUTAZIONE RICETTE --- */
@@ -289,7 +331,7 @@ async function deletePhotoFromStorage(photoUrl) {
   }
 }
 
-/* --- FORM RICETTA & INGREDIENTI --- */
+/* --- FORM RICETTA & INGREDIENTI CONDIVISI --- */
 function updateFileName(input) {
   const display = document.getElementById("file-name-display");
   if (!display) return;
@@ -340,11 +382,13 @@ function updateFilterSubcatOptions(prefix = "filter") {
 }
 
 function getIngredientOptionsHtml(selectedId = null) {
+  const myCreatedIngredients = customIngredients.filter(i => i.createdBy === currentUser?.id);
+
   let html = `<option value="">-- Seleziona --</option>`;
   html += `<option value="__NEW__" style="font-weight: bold; background-color: var(--c-sky-blue);">➕ + Nuovo ingrediente...</option>`;
 
-  if (customIngredients.length > 0) {
-    html += `<option value="__MANAGE__" style="font-weight: bold; background-color: #fca5a5;">🗑️ Elimina un ingrediente creato...</option>`;
+  if (myCreatedIngredients.length > 0) {
+    html += `<option value="__MANAGE__" style="font-weight: bold; background-color: #fca5a5;">🗑️ Elimina un ingrediente creato da me...</option>`;
   }
 
   const sortedIngredients = [...INGREDIENTS_DB].sort((a, b) =>
@@ -357,26 +401,53 @@ function getIngredientOptionsHtml(selectedId = null) {
 
 async function handleIngredientSelectChange(selectEl) {
   if (selectEl.value === "__NEW__") {
-    const name = prompt("Nome del nuovo ingrediente:");
+    const name = prompt("Nome del nuovo ingrediente (sarà visibile a tutta la community):");
     if (!name || !name.trim()) {
       selectEl.value = "";
       return;
     }
 
+    const cleanName = name.trim();
+
+    // Controlla se esiste già nella lista globale (evita doppioni)
+    const existing = INGREDIENTS_DB.find(
+      i => i.name.toLowerCase().trim() === cleanName.toLowerCase()
+    );
+    if (existing) {
+      selectEl.value = existing.id;
+      return showToast(`"${existing.name}" è già presente nella lista!`);
+    }
+
     let unit = prompt("Unità di misura (es. g, ml, pz):", "g");
     unit = unit ? unit.trim().toLowerCase() : "g";
 
-    const cleanName = name.trim();
     const id = "custom_" + Date.now();
-    const newIng = { id, name: cleanName, unit, staple: false };
+    const { error } = await supabaseClient
+      .from("ingredients")
+      .insert({
+        id,
+        name: cleanName,
+        unit,
+        staple: false,
+        created_by: currentUser.id
+      });
 
-    customIngredients.push(newIng);
-    INGREDIENTS_DB.push(newIng);
+    if (error) {
+      console.error(error);
+      await loadSharedIngredients();
+      const justCreated = INGREDIENTS_DB.find(
+        i => i.name.toLowerCase().trim() === cleanName.toLowerCase()
+      );
+      if (justCreated) {
+        selectEl.innerHTML = getIngredientOptionsHtml(justCreated.id);
+        selectEl.value = justCreated.id;
+        return showToast(`"${justCreated.name}" già esistente, selezionato!`);
+      }
+      selectEl.value = "";
+      return showToast("Errore salvataggio ingrediente");
+    }
 
-    await supabaseClient
-      .from("profiles")
-      .update({ custom_ingredients: customIngredients })
-      .eq("id", currentUser.id);
+    await loadSharedIngredients();
 
     document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
       const curVal = sel.value;
@@ -385,7 +456,7 @@ async function handleIngredientSelectChange(selectEl) {
 
     selectEl.value = id;
     buildPantryUI();
-    showToast("Ingrediente salvato nel cloud!");
+    showToast(`"${cleanName}" aggiunto per tutta la community!`);
   } else if (selectEl.value === "__MANAGE__") {
     await deleteCustomIngredientPrompt();
     selectEl.value = "";
@@ -393,10 +464,13 @@ async function handleIngredientSelectChange(selectEl) {
 }
 
 async function deleteCustomIngredientPrompt() {
-  if (customIngredients.length === 0) return showToast("Nessun ingrediente personalizzato.");
+  const myCreatedIngredients = customIngredients.filter(i => i.createdBy === currentUser?.id);
+  if (myCreatedIngredients.length === 0) {
+    return showToast("Non hai ancora creato ingredienti eliminabili.");
+  }
 
-  let promptText = "Digita il NUMERO dell'ingrediente da eliminare:\n\n";
-  customIngredients.forEach((ing, index) => {
+  let promptText = "Digita il NUMERO dell'ingrediente (creato da te) da eliminare:\n\n";
+  myCreatedIngredients.forEach((ing, index) => {
     promptText += `${index + 1}) ${ing.name} (${ing.unit})\n`;
   });
 
@@ -404,20 +478,29 @@ async function deleteCustomIngredientPrompt() {
   if (!choice) return;
 
   const selectedIndex = parseInt(choice.trim(), 10) - 1;
-  if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= customIngredients.length) {
+  if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= myCreatedIngredients.length) {
     return showToast("Scelta non valida");
   }
 
-  const removed = customIngredients[selectedIndex];
-  if (confirm(`Eliminare "${removed.name}"?`)) {
-    customIngredients.splice(selectedIndex, 1);
-    INGREDIENTS_DB = [...BASE_INGREDIENTS, ...customIngredients];
-    delete pantry[removed.id];
+  const removed = myCreatedIngredients[selectedIndex];
+  if (confirm(`Eliminare "${removed.name}" dalla lista della community?`)) {
+    const { error } = await supabaseClient
+      .from("ingredients")
+      .delete()
+      .eq("id", removed.id)
+      .eq("created_by", currentUser.id);
 
+    if (error) {
+      return showToast("Errore eliminazione ingrediente");
+    }
+
+    delete pantry[removed.id];
     await supabaseClient
       .from("profiles")
-      .update({ custom_ingredients: customIngredients, pantry })
+      .update({ pantry })
       .eq("id", currentUser.id);
+
+    await loadSharedIngredients();
 
     document.querySelectorAll("#recipe-ingredients-form .ing-select").forEach(sel => {
       const curVal = sel.value === removed.id ? "" : sel.value;
@@ -685,7 +768,6 @@ async function savePantry() {
     let updatedCount = 0;
 
     Object.keys(pendingRestockValues).forEach(ingId => {
-      if (isStapleIngredient(ingId)) return;
       const added = Number(pendingRestockValues[ingId]) || 0;
       if (added > 0) {
         const current = pantry[ingId] || 0;
