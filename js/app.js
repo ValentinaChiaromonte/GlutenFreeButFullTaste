@@ -1,6 +1,3 @@
-// =========================================================
-// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA DINAMICA, INGREDIENTI CONDIVISI, STORAGE E TIMER
-// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
