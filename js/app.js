@@ -1,3 +1,6 @@
+// =========================================================
+// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA, MODALE, STORAGE E TIMER
+// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
@@ -122,6 +125,23 @@ async function loadRecipesFromCloud() {
 
   renderRecipes();
   renderExploreRecipes();
+}
+
+/* --- CONTROLLO INGREDIENTI BASE (SEMPRE DISPONIBILI) --- */
+function isStapleIngredient(itemOrId) {
+  const id = typeof itemOrId === "string" ? itemOrId : itemOrId?.id;
+  if (!id) return false;
+
+  const info = INGREDIENTS_DB.find(i => i.id === id);
+  if (info && info.staple) return true;
+
+  const checkStr = ((info ? info.name : id) || "").toLowerCase().trim();
+  return (
+    checkStr === "sale" ||
+    checkStr === "acqua" ||
+    checkStr.startsWith("olio") ||
+    checkStr.startsWith("condimenti")
+  );
 }
 
 /* --- SALVATAGGIO E VALUTAZIONE RICETTE --- */
@@ -598,7 +618,7 @@ function setPantryMode(mode) {
 }
 
 function capturePendingRestockInputs() {
-  INGREDIENTS_DB.filter(i => !i.staple).forEach(ing => {
+  INGREDIENTS_DB.filter(i => !isStapleIngredient(i)).forEach(ing => {
     const el = document.getElementById("pantry-" + ing.id);
     if (el) {
       const val = Number(el.value);
@@ -620,7 +640,7 @@ function buildPantryUI() {
   c.innerHTML = "";
 
   const pantryIngredients = INGREDIENTS_DB
-    .filter(i => !i.staple)
+    .filter(i => !isStapleIngredient(i))
     .filter(i => !filterText || i.name.toLowerCase().includes(filterText))
     .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
 
@@ -665,6 +685,7 @@ async function savePantry() {
     let updatedCount = 0;
 
     Object.keys(pendingRestockValues).forEach(ingId => {
+      if (isStapleIngredient(ingId)) return;
       const added = Number(pendingRestockValues[ingId]) || 0;
       if (added > 0) {
         const current = pantry[ingId] || 0;
@@ -694,7 +715,7 @@ async function savePantry() {
       showToast(`Spesa aggiunta (+${updatedCount} prodotti)!`);
     }
   } else {
-    INGREDIENTS_DB.filter(i => !i.staple).forEach(ing => {
+    INGREDIENTS_DB.filter(i => !isStapleIngredient(i)).forEach(ing => {
       const el = document.getElementById("pantry-" + ing.id);
       if (el) {
         const val = Number(el.value);
@@ -724,8 +745,7 @@ function isRecipeDoable(recipe, targetServings = null) {
   const ratio = targetServings ? (targetServings / baseServings) : 1;
 
   return recipe.ingredients.every(item => {
-    const info = INGREDIENTS_DB.find(i => i.id === item.id);
-    if (info && info.staple) return true;
+    if (isStapleIngredient(item)) return true;
     const required = Math.round(item.amount * ratio * 10) / 10;
     const available = pantry[item.id] || 0;
     return available >= required;
@@ -738,9 +758,9 @@ function getMissingIngredients(recipe, targetServings) {
   const ratio = targetServings / baseServings;
 
   (recipe.ingredients || []).forEach(item => {
-    const info = INGREDIENTS_DB.find(i => i.id === item.id);
-    if (info && info.staple) return;
+    if (isStapleIngredient(item)) return;
 
+    const info = INGREDIENTS_DB.find(i => i.id === item.id);
     const required = Math.round(item.amount * ratio * 10) / 10;
     const available = pantry[item.id] || 0;
     if (available < required) {
@@ -771,8 +791,7 @@ async function markRecipeAsCooked() {
   if (!confirm(confirmMsg)) return;
 
   r.ingredients.forEach(item => {
-    const info = INGREDIENTS_DB.find(i => i.id === item.id);
-    if (info && info.staple) return;
+    if (isStapleIngredient(item)) return;
 
     const used = Math.round(item.amount * ratio * 10) / 10;
     const currentAvail = pantry[item.id] || 0;
