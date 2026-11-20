@@ -1,3 +1,6 @@
+// =========================================================
+// LOGICA PRINCIPALE: RICETTE, ESPLORA, DISPENSA DINAMICA, INGREDIENTI CONDIVISI, STORAGE E TIMER
+// =========================================================
 let editingRecipeId = null;
 let wakeLockSentinel = null;
 let timerInterval = null;
@@ -74,47 +77,76 @@ function isStapleIngredient(itemOrId) {
 async function loadUserProfileAndData() {
   if (!currentUser) return;
 
-  const { data: profile } = await supabaseClient
-    .from("profiles")
-    .select("*")
-    .eq("id", currentUser.id)
-    .single();
+  // 1. Carica profilo e dispensa personale
+  try {
+    const { data: profile } = await supabaseClient
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUser.id)
+      .single();
 
-  if (profile) {
-    currentProfile = profile;
-    pantry = profile.pantry || {};
+    if (profile) {
+      currentProfile = profile;
+      pantry = profile.pantry || {};
 
-    const displayUsername = profile.username || currentUser.email.split("@")[0];
-    document.getElementById("drawer-username").innerText = displayUsername;
-    document.getElementById("drawer-email").innerText = profile.email || currentUser.email;
-    if (typeof updateHeaderAvatarInitial === "function") {
-      updateHeaderAvatarInitial(displayUsername);
-    }
-
-    // Migra eventuali vecchi ingredienti personali nella tabella condivisa
-    const legacyCustom = profile.custom_ingredients || [];
-    if (legacyCustom.length > 0) {
-      for (const oldIng of legacyCustom) {
-        await supabaseClient
-          .from("ingredients")
-          .upsert({
-            id: oldIng.id,
-            name: oldIng.name,
-            unit: oldIng.unit || "g",
-            staple: oldIng.staple || false,
-            created_by: currentUser.id
-          }, { onConflict: "id", ignoreDuplicates: true });
+      const displayUsername = profile.username || currentUser.email.split("@")[0];
+      const userEl = document.getElementById("drawer-username");
+      const emailEl = document.getElementById("drawer-email");
+      if (userEl) userEl.innerText = displayUsername;
+      if (emailEl) emailEl.innerText = profile.email || currentUser.email;
+      if (typeof updateHeaderAvatarInitial === "function") {
+        updateHeaderAvatarInitial(displayUsername);
       }
-      await supabaseClient
-        .from("profiles")
-        .update({ custom_ingredients: [] })
-        .eq("id", currentUser.id);
+
+      // Migra eventuali vecchi ingredienti personali nella tabella condivisa
+      const legacyCustom = profile.custom_ingredients || [];
+      if (legacyCustom.length > 0) {
+        try {
+          for (const oldIng of legacyCustom) {
+            await supabaseClient
+              .from("ingredients")
+              .upsert({
+                id: oldIng.id,
+                name: oldIng.name,
+                unit: oldIng.unit || "g",
+                staple: oldIng.staple || false,
+                created_by: currentUser.id
+              }, { onConflict: "id", ignoreDuplicates: true });
+          }
+          await supabaseClient
+            .from("profiles")
+            .update({ custom_ingredients: [] })
+            .eq("id", currentUser.id);
+        } catch (migErr) {
+          console.error("Errore migrazione ingredienti legacy:", migErr);
+        }
+      }
     }
+  } catch (e) {
+    console.error("Errore caricamento profilo:", e);
   }
 
-  await loadSharedIngredients();
+  // 2. Carica ingredienti condivisi della community (protetto da errore)
+  try {
+    await loadSharedIngredients();
+  } catch (e) {
+    console.error("Errore loadSharedIngredients:", e);
+    INGREDIENTS_DB = [...BASE_INGREDIENTS];
+  }
+
+  // 3. Costruisce sempre la dispensa
   buildPantryUI();
-  await loadFriendships();
+
+  // 4. Carica amicizie (protetto da errore)
+  try {
+    if (typeof loadFriendships === "function") {
+      await loadFriendships();
+    }
+  } catch (e) {
+    console.error("Errore loadFriendships:", e);
+  }
+
+  // 5. Carica sempre le ricette
   await loadRecipesFromCloud();
 }
 
@@ -132,25 +164,33 @@ async function loadRecipesFromCloud() {
   const userIds = [...new Set((data || []).map(r => r.user_id).filter(Boolean))];
   let profilesMap = {};
   if (userIds.length > 0) {
-    const { data: profilesData } = await supabaseClient
-      .from("profiles")
-      .select("id, username, email")
-      .in("id", userIds);
+    try {
+      const { data: profilesData } = await supabaseClient
+        .from("profiles")
+        .select("id, username, email")
+        .in("id", userIds);
 
-    (profilesData || []).forEach(p => {
-      profilesMap[p.id] = p;
-    });
+      (profilesData || []).forEach(p => {
+        profilesMap[p.id] = p;
+      });
+    } catch (e) {
+      console.error("Errore caricamento autori:", e);
+    }
   }
 
-  const { data: savedData } = await supabaseClient
-    .from("saved_recipes")
-    .select("recipe_id, rating")
-    .eq("user_id", currentUser.id);
-
   savedRecipesMap = {};
-  (savedData || []).forEach(item => {
-    savedRecipesMap[item.recipe_id] = item.rating;
-  });
+  try {
+    const { data: savedData } = await supabaseClient
+      .from("saved_recipes")
+      .select("recipe_id, rating")
+      .eq("user_id", currentUser.id);
+
+    (savedData || []).forEach(item => {
+      savedRecipesMap[item.recipe_id] = item.rating;
+    });
+  } catch (e) {
+    console.error("Errore caricamento saved_recipes:", e);
+  }
 
   recipes = (data || []).map(r => {
     const isMine = r.user_id === currentUser.id;
