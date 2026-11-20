@@ -13,9 +13,6 @@ function toggleAuthMode() {
 
   const usernameGroup = document.getElementById("auth-username-group");
   if (usernameGroup) usernameGroup.style.display = isSignUpMode ? "block" : "none";
-
-  const forgotBtn = document.getElementById("forgot-password-btn");
-  if (forgotBtn) forgotBtn.style.display = isSignUpMode ? "none" : "block";
 }
 
 async function handleAuthSubmit() {
@@ -40,7 +37,6 @@ async function handleAuthSubmit() {
   btn.innerText = "Attendere...";
 
   if (isSignUpMode) {
-    // Controlla che il nome utente non sia già preso
     const { data: isAvailable } = await supabaseClient.rpc("is_username_available", {
       check_username: username
     });
@@ -51,7 +47,7 @@ async function handleAuthSubmit() {
       return showToast("Questo nome utente è già occupato, scegline un altro!", 2800);
     }
 
-    const { error } = await supabaseClient.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
@@ -63,11 +59,16 @@ async function handleAuthSubmit() {
       showToast("Errore registrazione: " + error.message, 3000);
     } else {
       showToast("Registrazione completata!");
+      if (data?.session) await handleSessionChange(data.session);
     }
   } else {
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) showToast("Credenziali non valide", 2500);
-    else showToast("Bentornato!");
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      showToast("Credenziali non valide", 2500);
+    } else {
+      showToast("Bentornato!");
+      if (data?.session) await handleSessionChange(data.session);
+    }
   }
 
   btn.disabled = false;
@@ -91,7 +92,22 @@ async function handleForgotPassword() {
   }
 }
 
-async function updateNewPassword() {
+async function requestPasswordResetFromDrawer() {
+  const email = currentProfile?.email || currentUser?.email;
+  if (!email) return;
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+
+  if (error) {
+    showToast("Errore: " + error.message, 3000);
+  } else {
+    showToast("Email per cambiare password inviata a " + email, 3500);
+  }
+}
+
+async function submitNewPassword() {
   const newPassword = document.getElementById("new-password-input").value;
   if (!newPassword || newPassword.length < 6) {
     return showToast("La password deve avere almeno 6 caratteri");
@@ -115,22 +131,29 @@ async function handleSessionChange(session) {
 
   if (session && session.user) {
     currentUser = session.user;
-    authScreen.style.display = "none";
-    appMain.style.display = "block";
-    drawerBtn.style.display = "flex";
+    if (authScreen) authScreen.style.display = "none";
+    if (appMain) appMain.style.display = "block";
+    if (drawerBtn) drawerBtn.style.display = "flex";
 
     await loadUserProfileAndData();
   } else {
     currentUser = null;
     currentProfile = null;
     closeSideDrawer();
-    authScreen.style.display = "block";
-    appMain.style.display = "none";
-    drawerBtn.style.display = "none";
+    if (authScreen) authScreen.style.display = "block";
+    if (appMain) appMain.style.display = "none";
+    if (drawerBtn) drawerBtn.style.display = "none";
   }
 }
 
 /* --- PANNELLO LATERALE --- */
+function updateHeaderAvatarInitial(username) {
+  const initialEl = document.getElementById("drawer-avatar-initial");
+  if (initialEl && username) {
+    initialEl.innerText = username.trim().charAt(0).toUpperCase();
+  }
+}
+
 function openSideDrawer() {
   const overlay = document.getElementById("side-drawer-overlay");
   if (overlay) overlay.classList.add("open");
@@ -142,20 +165,14 @@ function closeSideDrawer() {
   if (overlay) overlay.classList.remove("open");
 }
 
-function toggleFriendsDrawerSection() {
-  const content = document.getElementById("drawer-friends-content");
-  const chevron = document.getElementById("friends-chevron");
-  if (!content) return;
+function toggleFriendsAccordion() {
+  const body = document.getElementById("friends-accordion-body");
+  const arrow = document.getElementById("friends-accordion-arrow");
+  if (!body) return;
 
-  const isOpen = content.style.display === "block";
-  content.style.display = isOpen ? "none" : "block";
-  if (chevron) chevron.innerText = isOpen ? "▼" : "▲";
-}
-
-function openNewRecipeFormFromDrawer() {
-  closeSideDrawer();
-  resetAddForm();
-  showFormView();
+  const isOpen = body.style.display === "block";
+  body.style.display = isOpen ? "none" : "block";
+  if (arrow) arrow.innerText = isOpen ? "▼" : "▲";
 }
 
 async function changeUsername() {
@@ -177,47 +194,21 @@ async function changeUsername() {
     showToast("Nome utente già in uso o non valido", 2500);
   } else {
     if (currentProfile) currentProfile.username = cleanName;
-    document.getElementById("drawer-username").innerText = cleanName;
+    const userEl = document.getElementById("drawer-username");
+    if (userEl) userEl.innerText = cleanName;
     updateHeaderAvatarInitial(cleanName);
     showToast("Nome utente aggiornato!");
     await loadRecipesFromCloud();
   }
-
-  function updateHeaderAvatarInitial(username) {
-  const initialEl = document.getElementById("drawer-avatar-initial");
-  if (initialEl && username) {
-    initialEl.innerText = username.trim().charAt(0).toUpperCase();
-  }
-  }
 }
 
-async function logoutUser() {
+async function handleLogout() {
   closeSideDrawer();
   await supabaseClient.auth.signOut();
   showToast("Disconnesso");
 }
 
-async function deleteUserAccount() {
-  const confirmFirst = confirm(
-    "ATTENZIONE: Stai per eliminare definitivamente il tuo account, le tue ricette e la tua dispensa.\n\nVuoi procedere?"
-  );
-  if (!confirmFirst) return;
-
-  const confirmText = prompt('Per confermare, scrivi ELIMINA in maiuscolo:');
-  if (confirmText !== "ELIMINA") return showToast("Eliminazione annullata");
-
-  const { error } = await supabaseClient.rpc("delete_own_account");
-  if (error) {
-    console.error(error);
-    return showToast("Errore eliminazione account", 3000);
-  }
-
-  closeSideDrawer();
-  await supabaseClient.auth.signOut();
-  showToast("Account eliminato definitivamente.", 2500);
-}
-
-/* --- AMICI E RICHIESTE (TRAMITE NOME UTENTE O EMAIL) --- */
+/* --- AMICI E RICHIESTE --- */
 async function loadFriendships() {
   if (!currentUser) return;
   const { data, error } = await supabaseClient
@@ -238,62 +229,65 @@ async function loadFriendships() {
 }
 
 function renderFriendsUI() {
-  const pendingBox = document.getElementById("pending-requests-box");
-  const pendingList = document.getElementById("pending-requests-list");
+  const reqSection = document.getElementById("friend-requests-section");
+  const reqList = document.getElementById("friend-requests-list");
   const friendsList = document.getElementById("friends-list");
   const notifDot = document.getElementById("drawer-notif-dot");
-  const countSpan = document.getElementById("drawer-friends-count");
+  const countBadge = document.getElementById("friends-count-badge");
 
   const incomingPending = friendships.filter(
     f => f.status === "pending" && f.addressee_id === currentUser.id
   );
 
   if (incomingPending.length > 0) {
-    pendingBox.style.display = "block";
-    notifDot.style.display = "block";
-    pendingList.innerHTML = incomingPending.map(req => `
-      <div class="friend-row">
-        <div style="min-width: 0;">
-          <strong>👤 ${req.requester.username}</strong>
+    if (reqSection) reqSection.style.display = "block";
+    if (notifDot) notifDot.style.display = "block";
+    if (reqList) {
+      reqList.innerHTML = incomingPending.map(req => `
+        <div class="friend-row">
+          <div style="min-width: 0;">
+            <strong>👤 ${req.requester.username}</strong>
+          </div>
+          <div style="display:flex; gap:4px; flex-shrink: 0;">
+            <button type="button" class="btn-timer" style="background:#86efac; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', true)">✓</button>
+            <button type="button" class="btn-timer" style="background:#fca5a5; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', false)">✕</button>
+          </div>
         </div>
-        <div style="display:flex; gap:4px; flex-shrink: 0;">
-          <button type="button" class="btn-timer" style="background:#86efac; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', true)">✓</button>
-          <button type="button" class="btn-timer" style="background:#fca5a5; padding:6px 8px;" onclick="respondFriendRequest('${req.id}', false)">✕</button>
-        </div>
-      </div>
-    `).join("");
+      `).join("");
+    }
   } else {
-    pendingBox.style.display = "none";
-    notifDot.style.display = "none";
+    if (reqSection) reqSection.style.display = "none";
+    if (notifDot) notifDot.style.display = "none";
   }
 
   const accepted = friendships.filter(f => f.status === "accepted");
-  if (countSpan) countSpan.innerText = `(${accepted.length})`;
+  if (countBadge) countBadge.innerText = String(accepted.length);
 
-  if (accepted.length === 0) {
-    friendsList.innerHTML = `<p style="margin:0; font-size:0.95rem;">Nessun amico salvato.</p>`;
-  } else {
-    friendsList.innerHTML = accepted.map(f => {
-      const friendProfile = f.requester_id === currentUser.id ? f.addressee : f.requester;
-      return `
-        <div class="friend-row">
-          <div style="min-width: 0;">
-            <strong>👤 ${friendProfile.username}</strong>
+  if (friendsList) {
+    if (accepted.length === 0) {
+      friendsList.innerHTML = `<p style="margin:0; font-size:0.95rem;">Nessun amico salvato.</p>`;
+    } else {
+      friendsList.innerHTML = accepted.map(f => {
+        const friendProfile = f.requester_id === currentUser.id ? f.addressee : f.requester;
+        return `
+          <div class="friend-row">
+            <div style="min-width: 0;">
+              <strong>👤 ${friendProfile.username}</strong>
+            </div>
+            <button type="button" class="btn-timer" style="flex:0; background:#fca5a5; padding:6px 8px;" onclick="removeFriend('${f.id}')">✕</button>
           </div>
-          <button type="button" class="btn-timer" style="flex:0; background:#fca5a5; padding:6px 8px;" onclick="removeFriend('${f.id}')">✕</button>
-        </div>
-      `;
-    }).join("");
+        `;
+      }).join("");
+    }
   }
 }
 
 async function sendFriendRequest() {
-  const input = document.getElementById("friend-email-input");
-  const query = input.value.trim();
+  const input = document.getElementById("friend-search-input");
+  const query = (input?.value || "").trim();
 
   if (!query) return showToast("Inserisci un nome utente o un'email");
 
-  // Cerca per email (se contiene @) oppure per nome utente (case-insensitive)
   let targetProfile = null;
   if (query.includes("@")) {
     const { data } = await supabaseClient
@@ -335,7 +329,7 @@ async function sendFriendRequest() {
   if (error) {
     showToast("Errore invio richiesta");
   } else {
-    input.value = "";
+    if (input) input.value = "";
     showToast(`Richiesta inviata a ${targetProfile.username}!`);
     await loadFriendships();
   }
